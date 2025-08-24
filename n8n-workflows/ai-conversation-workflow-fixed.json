@@ -1,0 +1,242 @@
+{
+  "name": "AI Cold Calling - Conversation Handler (Fixed)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-conversation",
+        "options": {}
+      },
+      "id": "webhook-ai-conversation",
+      "name": "Webhook - AI Conversation",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "ai-conversation-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.conversationHistory }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-conversation-context",
+      "name": "Check Conversation Context",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze conversation to determine current step and customer intent\nconst conversationHistory = $input.item.json.conversationHistory || [];\nconst customerData = $input.item.json.customerData || {};\nconst lastUserMessage = conversationHistory.filter(msg => msg.role === 'user').pop();\n\n// Determine conversation step based on history\nlet currentStep = 'greeting';\nlet customerIntent = 'unknown';\nlet shouldContinue = true;\nlet nextAction = 'continue';\n\nif (conversationHistory.length === 0) {\n  currentStep = 'greeting';\n} else if (conversationHistory.length <= 4) {\n  currentStep = 'confirm_interest';\n} else {\n  // Analyze last user message for intent\n  const lastMessage = lastUserMessage?.content?.toLowerCase() || '';\n  \n  if (lastMessage.includes('yes') || lastMessage.includes('interested')) {\n    if (lastMessage.includes('appointment') || lastMessage.includes('schedule')) {\n      currentStep = 'schedule_appointment';\n      nextAction = 'end_call';\n      shouldContinue = false;\n    } else {\n      currentStep = 'offer_appointment';\n    }\n    customerIntent = 'interested';\n  } else if (lastMessage.includes('no') || lastMessage.includes('not interested')) {\n    currentStep = 'offer_alternatives';\n    customerIntent = 'not_interested';\n  } else if (lastMessage.includes('@') || lastMessage.includes('email')) {\n    currentStep = 'collect_email';\n    nextAction = 'end_call';\n    shouldContinue = false;\n    customerIntent = 'wants_alternatives';\n  } else if (lastMessage.includes('goodbye') || lastMessage.includes('bye')) {\n    currentStep = 'end_call';\n    nextAction = 'end_call';\n    shouldContinue = false;\n    customerIntent = 'end_conversation';\n  }\n}\n\n// Generate context for AI response\nconst conversationContext = {\n  currentStep,\n  customerIntent,\n  shouldContinue,\n  nextAction,\n  customerName: customerData.name || 'Customer',\n  carModel: customerData.carModel || 'the vehicle',\n  enquiryDate: customerData.enquiryDate || 'recently',\n  conversationLength: conversationHistory.length,\n  originalData: $input.item.json\n};\n\nreturn {\n  json: conversationContext\n};"
+      },
+      "id": "analyze-conversation",
+      "name": "Analyze Conversation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are Sarah, a professional and friendly car dealership representative making a follow-up call.\\n\\nCustomer Information:\\n- Name: {{ $json.customerName }}\\n- Car Enquired: {{ $json.carModel }}\\n- Enquiry Date: {{ $json.enquiryDate }}\\n\\nConversation Context:\\n- Current Step: {{ $json.currentStep }}\\n- Customer Intent: {{ $json.customerIntent }}\\n- Conversation Length: {{ $json.conversationLength }}\\n\\nCall Script Guidelines:\\n1. GREETING: Introduce yourself and confirm it's a good time to talk\\n2. CONFIRM_INTEREST: Ask if they're still interested in the original car\\n3. OFFER_APPOINTMENT: If interested, offer to schedule an appointment\\n4. OFFER_ALTERNATIVES: If not interested, offer similar cars\\n5. COLLECT_EMAIL: Get email address to send similar car options\\n6. END_CALL: Thank them and end politely\\n\\nResponse Rules:\\n- Keep responses natural and conversational (1-2 sentences max)\\n- Match the customer's tone and energy level\\n- Be helpful but not pushy\\n- If they seem busy or uninterested, offer to call back later\\n- Always confirm important details (appointments, email addresses)\\n- End the call gracefully when appropriate\\n\\nCurrent step: {{ $json.currentStep }}\\nRespond appropriately for this step.\"\n    }\n  ],\n  \"max_tokens\": 150,\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "id": "generate-ai-response",
+      "name": "Generate AI Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openai-api-key",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process AI response and extract key information\nconst aiResponse = $input.item.json.choices[0].message.content || '';\nconst conversationContext = $input.item.json.originalData || {};\n\n// Extract outcomes from AI response\nconst outcomes = {\n  stillInterested: 'Unknown',\n  wantsAppointment: 'Unknown',\n  wantsSimilarCars: 'Unknown',\n  emailAddress: '',\n  appointmentScheduled: false\n};\n\n// Analyze AI response for outcomes\nconst responseText = aiResponse.toLowerCase();\n\nif (responseText.includes('appointment') && responseText.includes('schedule')) {\n  outcomes.wantsAppointment = 'Yes';\n  outcomes.appointmentScheduled = true;\n}\n\nif (responseText.includes('similar') && responseText.includes('cars')) {\n  outcomes.wantsSimilarCars = 'Yes';\n}\n\n// Extract email if mentioned\nconst emailMatch = aiResponse.match(/[\\w.-]+@[\\w.-]+\\.\\w+/);\nif (emailMatch) {\n  outcomes.emailAddress = emailMatch[0];\n}\n\n// Determine if conversation should continue\nconst shouldContinue = !responseText.includes('goodbye') && \n                      !responseText.includes('thank you for your time') &&\n                      !responseText.includes('have a great day') &&\n                      !outcomes.appointmentScheduled;\n\n// Determine next action\nlet nextAction = 'continue';\nif (!shouldContinue) {\n  nextAction = 'end_call';\n} else if (outcomes.wantsSimilarCars === 'Yes' && !outcomes.emailAddress) {\n  nextAction = 'collect_email';\n} else if (outcomes.wantsAppointment === 'Yes') {\n  nextAction = 'schedule_appointment';\n}\n\nreturn {\n  json: {\n    aiResponse: aiResponse,\n    shouldContinue: shouldContinue,\n    nextAction: nextAction,\n    outcomes: outcomes,\n    conversationContext: conversationContext,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "process-ai-response",
+      "name": "Process AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.aiResponse }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-speech-synthesis",
+      "name": "Check Speech Synthesis",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/{{ $vars.ELEVENLABS_VOICE_ID }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "audio/mpeg"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $json.aiResponse }}\",\n  \"model_id\": \"eleven_monolingual_v1\",\n  \"voice_settings\": {\n    \"stability\": 0.5,\n    \"similarity_boost\": 0.5\n  }\n}",
+        "options": {}
+      },
+      "id": "synthesize-speech",
+      "name": "Synthesize Speech",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1560, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "elevenlabs-api-key",
+          "name": "ElevenLabs API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"aiResponse\": \"{{ $json.aiResponse }}\",\n  \"shouldContinue\": {{ $json.shouldContinue }},\n  \"nextAction\": \"{{ $json.nextAction }}\",\n  \"outcomes\": {{ JSON.stringify($json.outcomes) }},\n  \"audioUrl\": \"{{ $('Synthesize Speech').item.json.audioUrl || '' }}\",\n  \"timestamp\": \"{{ $json.timestamp }}\"\n}",
+        "options": {}
+      },
+      "id": "return-response",
+      "name": "Return Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - AI Conversation": {
+      "main": [
+        [
+          {
+            "node": "Check Conversation Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Conversation Context": {
+      "main": [
+        [
+          {
+            "node": "Analyze Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Conversation": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Response": {
+      "main": [
+        [
+          {
+            "node": "Process AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process AI Response": {
+      "main": [
+        [
+          {
+            "node": "Check Speech Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Speech Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Speech",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Speech": {
+      "main": [
+        [
+          {
+            "node": "Return Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "ai-conversation-fixed",
+  "tags": []
+}

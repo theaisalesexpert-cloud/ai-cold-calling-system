@@ -31,6 +31,29 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Validate required environment variables
+const requiredEnvVars = [
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+  'TWILIO_PHONE_NUMBER',
+  'OPENAI_API_KEY',
+  'ELEVENLABS_API_KEY',
+  'ELEVENLABS_VOICE_ID'
+];
+
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  logger.error('Missing required environment variables:', { missingEnvVars });
+  console.error('❌ Missing required environment variables:');
+  missingEnvVars.forEach(varName => {
+    console.error(`   - ${varName}`);
+  });
+  console.error('\n📋 Please add these environment variables in Render.com dashboard:');
+  console.error('   Settings → Environment → Add Environment Variable');
+  process.exit(1);
+}
+
 // Twilio client
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
