@@ -33,11 +33,17 @@ Fully automated AI calling system that reads leads from Google Sheets, makes nat
 ```
 
 ## Quick Start
-1. Configure all API credentials in n8n
-2. Set up Google Sheets with required columns
-3. Deploy webhook server to Render.com
-4. Import n8n workflows
-5. Test with sample leads
+1. **Verify Credentials**: Run `node scripts/verify-credentials.js`
+2. **Deploy to Render.com**: Follow `render-deploy-instructions.md`
+3. **Configure Domain**: Set up `theaisalesexpert.co.uk`
+4. **Set up Google Sheets**: Use structure in `config/google-sheets-structure.md`
+5. **Import n8n workflows**: From `n8n-workflows/` folder
+6. **Test system**: Run `node scripts/test-system.js`
+
+## 🚀 Deployment Files
+- **[Deployment Instructions](render-deploy-instructions.md)** - Complete Render.com setup
+- **[Deployment Checklist](DEPLOYMENT-CHECKLIST.md)** - Step-by-step checklist
+- **[Credential Verification](scripts/verify-credentials.js)** - Verify API keys before deploy
 
 ## Documentation
 - [Setup Guide](docs/setup-guide.md)
