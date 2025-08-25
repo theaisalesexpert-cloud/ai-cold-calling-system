@@ -349,6 +349,31 @@ function generateCallSummary(session) {
   return summary.trim();
 }
 
+// Webhook endpoint for call status updates from Twilio
+app.post('/webhook/call/status', async (req, res) => {
+  try {
+    const { CallSid, CallStatus, CallDuration, From, To } = req.body;
+
+    console.log('Call status update:', {
+      CallSid,
+      CallStatus,
+      CallDuration,
+      From,
+      To,
+      timestamp: new Date().toISOString()
+    });
+
+    // You can add additional logic here to handle different call statuses
+    // For example, logging to database, sending notifications, etc.
+
+    res.status(200).send('OK');
+
+  } catch (error) {
+    console.error('Error handling call status:', error);
+    res.status(500).send('Error processing status update');
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
