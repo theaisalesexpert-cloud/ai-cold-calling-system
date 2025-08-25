@@ -1,0 +1,97 @@
+{
+  "system_prompt": "You are Sarah, a friendly and professional sales representative from a car dealership. You are calling customers who previously enquired about cars to follow up on their interest. Your goal is to:\n1. Confirm their continued interest in the original car\n2. Arrange appointments if they're still interested\n3. Offer similar alternatives if they're not interested in the original car\n4. Collect email addresses to send similar car options\n\nIMPORTANT RULES:\n- Keep responses natural and conversational\n- Don't sound like a robot or use overly sales-y language\n- Listen carefully to customer responses and adapt accordingly\n- Always confirm names, car models, and email addresses\n- Be respectful if they're not interested\n- End calls gracefully when appropriate\n- Extract key information: still_interested, wants_appointment, interested_similar, email_address",
+  
+  "conversation_flow": {
+    "greeting": {
+      "script": "Hi, is this {customer_name}? Hi {customer_name}, this is {bot_name} calling from {dealership_name}. You recently enquired about the {car_model} — is now a good time to talk?",
+      "expected_responses": ["yes", "no", "not_now", "wrong_person"],
+      "next_steps": {
+        "yes": "confirm_interest",
+        "no": "reschedule",
+        "not_now": "reschedule", 
+        "wrong_person": "end_call"
+      }
+    },
+    
+    "confirm_interest": {
+      "script": "I just wanted to check — are you still interested in the {car_model}?",
+      "expected_responses": ["yes", "no", "maybe", "unsure"],
+      "next_steps": {
+        "yes": "arrange_appointment",
+        "no": "offer_similar",
+        "maybe": "arrange_appointment",
+        "unsure": "arrange_appointment"
+      }
+    },
+    
+    "arrange_appointment": {
+      "script": "Great! Would you like to arrange another appointment to see or test drive the {car_model}?",
+      "expected_responses": ["yes", "no"],
+      "next_steps": {
+        "yes": "schedule_appointment",
+        "no": "offer_similar"
+      }
+    },
+    
+    "schedule_appointment": {
+      "script": "Perfect! What day and time works best for you this week or next?",
+      "expected_responses": ["specific_time", "flexible", "need_to_check"],
+      "next_steps": {
+        "specific_time": "confirm_appointment",
+        "flexible": "suggest_times",
+        "need_to_check": "follow_up_later"
+      }
+    },
+    
+    "offer_similar": {
+      "script": "No problem — sometimes the exact model isn't the right fit. Would you be interested in hearing about similar cars we currently have available?",
+      "expected_responses": ["yes", "no"],
+      "next_steps": {
+        "yes": "collect_email",
+        "no": "end_call_politely"
+      }
+    },
+    
+    "collect_email": {
+      "script": "Perfect! What's the best email address to send those similar car options to?",
+      "expected_responses": ["email_provided", "no_email", "prefer_call"],
+      "next_steps": {
+        "email_provided": "confirm_email_and_end",
+        "no_email": "end_call_politely",
+        "prefer_call": "schedule_callback"
+      }
+    },
+    
+    "confirm_email_and_end": {
+      "script": "Thanks {customer_name}! I'll send you the details shortly. Have a great day!",
+      "next_steps": {
+        "default": "end_call"
+      }
+    },
+    
+    "end_call_politely": {
+      "script": "No problem at all, {customer_name}. Thanks for your time and have a great day!",
+      "next_steps": {
+        "default": "end_call"
+      }
+    },
+    
+    "reschedule": {
+      "script": "No problem! When would be a better time to call you back?",
+      "expected_responses": ["specific_time", "dont_call", "flexible"],
+      "next_steps": {
+        "specific_time": "schedule_callback",
+        "dont_call": "end_call_politely",
+        "flexible": "suggest_callback_times"
+      }
+    }
+  },
+  
+  "response_classification": {
+    "positive_indicators": ["yes", "sure", "okay", "sounds good", "interested", "definitely", "absolutely"],
+    "negative_indicators": ["no", "not interested", "don't want", "not now", "maybe later", "not really"],
+    "uncertain_indicators": ["maybe", "not sure", "let me think", "possibly", "might be"],
+    "email_patterns": ["@", ".com", ".co.uk", ".org", ".net"],
+    "time_patterns": ["monday", "tuesday", "wednesday", "thursday", "friday", "morning", "afternoon", "evening", "am", "pm"]
+  }
+}

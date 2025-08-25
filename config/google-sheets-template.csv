@@ -1,0 +1,4 @@
+customer_name,phone_number,car_model,enquiry_date,call_status,call_attempts,last_call_date,still_interested,wants_appointment,appointment_date,interested_similar,email_address,email_sent,call_duration,call_notes,next_action
+John Smith,+1234567890,Toyota Camry 2024,2024-01-15,pending,0,,,unknown,unknown,,unknown,,no,,,
+Sarah Johnson,+1987654321,Honda Accord 2024,2024-01-16,pending,0,,,unknown,unknown,,unknown,,no,,,
+Mike Davis,+1555123456,BMW 3 Series 2024,2024-01-17,pending,0,,,unknown,unknown,,unknown,,no,,,

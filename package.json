@@ -1,0 +1,47 @@
+{
+  "name": "ai-cold-calling-system",
+  "version": "1.0.0",
+  "description": "Automated AI cold calling system for car dealership lead follow-ups",
+  "main": "index.js",
+  "scripts": {
+    "setup": "node scripts/setup-wizard.js",
+    "test": "node tests/test-workflow.js",
+    "dev": "cd webhooks && npm run dev",
+    "start": "cd webhooks && npm start",
+    "install-deps": "cd webhooks && npm install",
+    "validate": "node scripts/validate-config.js",
+    "deploy": "echo 'Please follow the deployment guide in scripts/deploy-to-render.md'"
+  },
+  "keywords": [
+    "ai",
+    "cold-calling",
+    "twilio",
+    "n8n",
+    "automation",
+    "car-dealership",
+    "voice-ai",
+    "lead-generation"
+  ],
+  "author": "AI Sales Expert",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/ai-cold-calling-system.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/ai-cold-calling-system/issues"
+  },
+  "homepage": "https://github.com/yourusername/ai-cold-calling-system#readme",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1"
+  }
+}
