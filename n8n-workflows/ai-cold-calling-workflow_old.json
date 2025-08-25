@@ -23,55 +23,10 @@
     },
     {
       "parameters": {
-        "values": {
-          "string": [
-            {
-              "name": "googleSheetsId",
-              "value": "REPLACE_WITH_YOUR_GOOGLE_SHEETS_ID"
-            },
-            {
-              "name": "twilioAccountSid",
-              "value": "REPLACE_WITH_YOUR_TWILIO_ACCOUNT_SID"
-            },
-            {
-              "name": "twilioPhoneNumber",
-              "value": "REPLACE_WITH_YOUR_TWILIO_PHONE_NUMBER"
-            },
-            {
-              "name": "webhookBaseUrl",
-              "value": "https://ai-cold-calling-system.onrender.com"
-            },
-            {
-              "name": "dealershipName",
-              "value": "REPLACE_WITH_YOUR_DEALERSHIP_NAME"
-            },
-            {
-              "name": "botName",
-              "value": "Sarah"
-            },
-            {
-              "name": "smtpUser",
-              "value": "REPLACE_WITH_YOUR_GMAIL_ADDRESS"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "set-variables",
-      "name": "Set Variables",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        460,
-        300
-      ]
-    },
-    {
-      "parameters": {
         "authentication": "serviceAccount",
         "resource": "sheet",
         "operation": "read",
-        "documentId": "={{ $node[\"Set Variables\"].json[\"googleSheetsId\"] }}",
+        "documentId": "={{ $env.GOOGLE_SHEETS_ID }}",
         "sheetName": "Sheet1",
         "range": "A:P",
         "options": {
@@ -83,7 +38,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        680,
+        460,
         300
       ],
       "credentials": {
@@ -130,7 +85,7 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
       "position": [
-        900,
+        680,
         300
       ]
     },
@@ -144,7 +99,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        1120,
+        900,
         300
       ]
     },
@@ -152,7 +107,7 @@
       "parameters": {
         "resource": "sheet",
         "operation": "update",
-        "documentId": "={{ $node[\"Set Variables\"].json[\"googleSheetsId\"] }}",
+        "documentId": "={{ $env.GOOGLE_SHEETS_ID }}",
         "sheetName": "Sheet1",
         "columnToMatchOn": "phone_number",
         "valueToMatchOn": "={{ $json.phone_number }}",
@@ -191,7 +146,7 @@
     },
     {
       "parameters": {
-        "url": "https://api.twilio.com/2010-04-01/Accounts/{{ $node[\"Set Variables\"].json[\"twilioAccountSid\"] }}/Calls.json",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Calls.json",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "twilioApi",
         "sendBody": true,
@@ -204,11 +159,11 @@
             },
             {
               "name": "From",
-              "value": "={{ $node[\"Set Variables\"].json[\"twilioPhoneNumber\"] }}"
+              "value": "={{ $env.TWILIO_PHONE_NUMBER }}"
             },
             {
               "name": "Url",
-              "value": "={{ $node[\"Set Variables\"].json[\"webhookBaseUrl\"] }}/webhook/call/initiate"
+              "value": "={{ $env.WEBHOOK_BASE_URL }}/webhook/call/initiate"
             },
             {
               "name": "Method",
@@ -216,7 +171,7 @@
             },
             {
               "name": "StatusCallback",
-              "value": "={{ $node[\"Set Variables\"].json[\"webhookBaseUrl\"] }}/webhook/call/status"
+              "value": "={{ $env.WEBHOOK_BASE_URL }}/webhook/call/status"
             },
             {
               "name": "StatusCallbackEvent",
@@ -265,7 +220,7 @@
       "parameters": {
         "resource": "sheet",
         "operation": "update",
-        "documentId": "={{ $node[\"Set Variables\"].json[\"googleSheetsId\"] }}",
+        "documentId": "={{ $env.GOOGLE_SHEETS_ID }}",
         "sheetName": "Sheet1",
         "columnToMatchOn": "phone_number",
         "valueToMatchOn": "={{ $json.phone_number }}",
@@ -365,11 +320,11 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ $node[\"Set Variables\"].json[\"smtpUser\"] }}",
+        "fromEmail": "={{ $env.SMTP_USER }}",
         "toEmail": "={{ $json.extracted_data.email_address }}",
-        "subject": "Similar Car Options - {{ $node[\"Set Variables\"].json[\"dealershipName\"] }}",
+        "subject": "Similar Car Options - {{ $env.DEALERSHIP_NAME }}",
         "emailType": "html",
-        "message": "<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n        .header { background-color: #f4f4f4; padding: 20px; text-align: center; }\n        .content { padding: 20px; }\n        .car-option { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }\n        .footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h2>{{ $node[\"Set Variables\"].json[\"dealershipName\"] }}</h2>\n        <p>Similar Car Options for You</p>\n    </div>\n    \n    <div class=\"content\">\n        <p>Hi {{ $json.customer_name }},</p>\n        \n        <p>Thank you for speaking with us today about the {{ $json.car_model }}. As discussed, here are some similar vehicles that might interest you:</p>\n        \n        <div class=\"car-option\">\n            <h3>Similar Model 1</h3>\n            <p><strong>Year:</strong> 2024</p>\n            <p><strong>Price:</strong> Contact for pricing</p>\n            <p><strong>Features:</strong> Similar features to your original enquiry</p>\n        </div>\n        \n        <div class=\"car-option\">\n            <h3>Similar Model 2</h3>\n            <p><strong>Year:</strong> 2024</p>\n            <p><strong>Price:</strong> Contact for pricing</p>\n            <p><strong>Features:</strong> Enhanced features and options</p>\n        </div>\n        \n        <p>If any of these options interest you, please don't hesitate to contact us at {{ $node[\"Set Variables\"].json[\"twilioPhoneNumber\"] }} or reply to this email.</p>\n        \n        <p>We look forward to helping you find the perfect vehicle!</p>\n        \n        <p>Best regards,<br>\n        {{ $node[\"Set Variables\"].json[\"botName\"] }} from {{ $node[\"Set Variables\"].json[\"dealershipName\"] }}<br>\n        {{ $node[\"Set Variables\"].json[\"dealershipName\"] }}</p>\n    </div>\n    \n    <div class=\"footer\">\n        <p>This email was sent because you expressed interest in similar car options during our phone conversation.</p>\n    </div>\n</body>\n</html>",
+        "message": "<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n        .header { background-color: #f4f4f4; padding: 20px; text-align: center; }\n        .content { padding: 20px; }\n        .car-option { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }\n        .footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h2>{{ $env.DEALERSHIP_NAME }}</h2>\n        <p>Similar Car Options for You</p>\n    </div>\n    \n    <div class=\"content\">\n        <p>Hi {{ $json.customer_name }},</p>\n        \n        <p>Thank you for speaking with us today about the {{ $json.car_model }}. As discussed, here are some similar vehicles that might interest you:</p>\n        \n        <div class=\"car-option\">\n            <h3>Similar Model 1</h3>\n            <p><strong>Year:</strong> 2024</p>\n            <p><strong>Price:</strong> Contact for pricing</p>\n            <p><strong>Features:</strong> Similar features to your original enquiry</p>\n        </div>\n        \n        <div class=\"car-option\">\n            <h3>Similar Model 2</h3>\n            <p><strong>Year:</strong> 2024</p>\n            <p><strong>Price:</strong> Contact for pricing</p>\n            <p><strong>Features:</strong> Enhanced features and options</p>\n        </div>\n        \n        <p>If any of these options interest you, please don't hesitate to contact us at {{ $env.TWILIO_PHONE_NUMBER }} or reply to this email.</p>\n        \n        <p>We look forward to helping you find the perfect vehicle!</p>\n        \n        <p>Best regards,<br>\n        {{ $env.DEFAULT_REP_NAME }}<br>\n        {{ $env.DEALERSHIP_NAME }}</p>\n    </div>\n    \n    <div class=\"footer\">\n        <p>This email was sent because you expressed interest in similar car options during our phone conversation.</p>\n    </div>\n</body>\n</html>",
         "options": {}
       },
       "id": "send-email",
@@ -391,7 +346,7 @@
       "parameters": {
         "resource": "sheet",
         "operation": "update",
-        "documentId": "={{ $node[\"Set Variables\"].json[\"googleSheetsId\"] }}",
+        "documentId": "={{ $env.GOOGLE_SHEETS_ID }}",
         "sheetName": "Sheet1",
         "columnToMatchOn": "phone_number",
         "valueToMatchOn": "={{ $json.phone_number }}",
@@ -423,17 +378,6 @@
   ],
   "connections": {
     "Schedule Calls": {
-      "main": [
-        [
-          {
-            "node": "Set Variables",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Set Variables": {
       "main": [
         [
           {

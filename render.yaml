@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: ai-cold-calling-webhooks
+    env: node
+    rootDir: webhooks
+    buildCommand: npm install
+    startCommand: npm start
+    plan: starter
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /health
