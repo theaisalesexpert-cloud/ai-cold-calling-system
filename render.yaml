@@ -1,13 +1,27 @@
-services:
-  - type: web
-    name: ai-cold-calling-webhooks
-    env: node
-    rootDir: webhooks
-    buildCommand: npm install
-    startCommand: npm start
-    plan: starter
-    region: oregon
-    envVars:
-      - key: NODE_ENV
-        value: production
-    healthCheckPath: /health
+# Render.com Configuration
+# This file can be used for Infrastructure as Code deployment
+
+{
+  "services": [
+    {
+      "type": "web",
+      "name": "ai-calling-system",
+      "env": "node",
+      "region": "oregon",
+      "plan": "starter",
+      "buildCommand": "cd webhooks && npm install",
+      "startCommand": "cd webhooks && npm start",
+      "healthCheckPath": "/health",
+      "envVars": [
+        {
+          "key": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "key": "PORT",
+          "value": "10000"
+        }
+      ]
+    }
+  ]
+}

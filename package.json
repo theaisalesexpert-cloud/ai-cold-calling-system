@@ -5,12 +5,18 @@
   "main": "index.js",
   "scripts": {
     "setup": "node scripts/setup-wizard.js",
+    "local-setup": "node scripts/local-setup.js",
     "test": "node tests/test-workflow.js",
     "dev": "cd webhooks && npm run dev",
     "start": "cd webhooks && npm start",
+    "local-start": "cd webhooks && node test-local.js",
     "install-deps": "cd webhooks && npm install",
     "validate": "node scripts/validate-config.js",
-    "deploy": "echo 'Please follow the deployment guide in scripts/deploy-to-render.md'"
+    "test-local": "node scripts/test-local-apis.js",
+    "test-n8n": "node scripts/test-n8n-integration.js",
+    "test-n8n-interactive": "node scripts/test-n8n-integration.js --interactive",
+    "deploy": "node scripts/deploy-to-render.js",
+    "deploy-help": "echo 'Run: npm run deploy for deployment assistance'"
   },
   "keywords": [
     "ai",

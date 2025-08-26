@@ -1,33 +1,107 @@
-// Twilio Voice Webhook Handler
-// This handles incoming and outgoing call events from Twilio
+// Enhanced Twilio Voice Webhook Handler
+// Comprehensive AI calling system with advanced features
 
 const express = require('express');
+const cors = require('cors');
+const compression = require('compression');
 const twilio = require('twilio');
-const axios = require('axios');
+const mongoose = require('mongoose');
+
+// Import enhanced modules
 const VoiceServices = require('./voice-services');
+const ConversationManager = require('./ai/conversationManager');
+const analyticsService = require('./services/analyticsService');
+const Call = require('./models/Call');
+const Lead = require('./models/Lead');
+
+// Import utilities and middleware
+const logger = require('./utils/logger');
+const config = require('./utils/config');
+const { errorHandler, asyncHandler, gracefulShutdown } = require('./utils/errorHandler');
+const { validate } = require('./utils/validation');
+
+// Import security and compliance middleware
+const {
+  rateLimiters,
+  securityHeaders,
+  validateRequest,
+  verifyTwilioSignature,
+  authenticateAPIKey,
+  sanitizeRequest,
+  corsOptions,
+  auditLogger
+} = require('./middleware/security');
+
+const {
+  checkConsent,
+  validateRecordingConsent,
+  addRetentionHeaders
+} = require('./middleware/compliance');
+
+// Import route handlers
+const n8nRoutes = require('./routes/n8nRoutes');
+
 const app = express();
 
-// Middleware
+// Trust proxy for accurate IP addresses
+app.set('trust proxy', 1);
+
+// Security middleware
+app.use(securityHeaders);
+app.use(cors(corsOptions));
+app.use(compression());
+app.use(auditLogger);
+
+// Rate limiting
+app.use('/webhook/call/initiate', rateLimiters.callInitiation);
+app.use('/api/', rateLimiters.general);
+
+// Body parsing middleware
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.raw({ type: 'application/octet-stream', limit: '25mb' }));
 
-// Environment variables
-const {
-  TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN,
-  TWILIO_PHONE_NUMBER,
-  OPENAI_API_KEY,
-  ELEVENLABS_API_KEY,
-  DEEPGRAM_API_KEY,
-  N8N_WEBHOOK_URL,
-  WEBHOOK_BASE_URL
-} = process.env;
+// Request validation and sanitization
+app.use(validateRequest);
+app.use(sanitizeRequest);
+app.use(addRetentionHeaders());
 
-const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+// Initialize services
+const twilioConfig = config.getTwilioConfig();
+const client = twilio(twilioConfig.accountSid, twilioConfig.authToken);
 const voiceServices = new VoiceServices();
+const conversationManager = new ConversationManager();
 
-// Store active call sessions
+// Database connection
+mongoose.connect(config.getDatabaseConfig().mongodb.uri, config.getDatabaseConfig().mongodb.options)
+  .then(() => {
+    logger.info('Connected to MongoDB');
+  })
+  .catch((error) => {
+    logger.error('MongoDB connection failed', { error: error.message });
+    process.exit(1);
+  });
+
+// Store active call sessions in memory (consider Redis for production)
 const callSessions = new Map();
+
+// Cleanup old sessions periodically
+setInterval(() => {
+  conversationManager.cleanupOldContexts();
+  cleanupOldSessions();
+}, 60 * 60 * 1000); // Every hour
+
+function cleanupOldSessions() {
+  const now = new Date();
+  const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+
+  for (const [sessionId, session] of callSessions.entries()) {
+    if (now - session.startTime > maxAge) {
+      callSessions.delete(sessionId);
+      logger.info('Cleaned up old session', { sessionId });
+    }
+  }
+}
 
 // Webhook endpoint for outgoing calls (initiated by n8n)
 app.post('/webhook/call/initiate', async (req, res) => {
@@ -375,13 +449,26 @@ app.post('/webhook/call/status', async (req, res) => {
 });
 
 // Health check endpoint
+// API Routes
+app.use('/api/n8n', n8nRoutes);
+
+// Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    services: {
+      database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+      n8n: !!process.env.N8N_WEBHOOK_URL ? 'configured' : 'not configured'
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Twilio webhook server running on port ${PORT}`);
+  console.log(`🚀 AI Cold Calling System running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 n8n Integration: http://localhost:${PORT}/api/n8n/status`);
 });
 
 module.exports = app;
