@@ -1,0 +1,95 @@
+services:
+  - type: web
+    name: ai-calling-backend
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: ai-calling-backend
+          property: port
+      - key: BASE_URL
+        fromService:
+          type: web
+          name: ai-calling-backend
+          property: host
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: TWILIO_WEBHOOK_URL
+        fromService:
+          type: web
+          name: ai-calling-backend
+          property: host
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4-turbo-preview
+      - key: OPENAI_MAX_TOKENS
+        value: 150
+      - key: OPENAI_TEMPERATURE
+        value: 0.7
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_MODEL_ID
+        value: eleven_turbo_v2
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: DEEPGRAM_MODEL
+        value: nova-2
+      - key: DEEPGRAM_LANGUAGE
+        value: en-US
+      - key: GOOGLE_SHEETS_ID
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_PROJECT_ID
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: N8N_WEBHOOK_URL
+        sync: false
+      - key: N8N_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: info
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+      - key: MAX_CALL_DURATION
+        value: 300
+      - key: CALL_TIMEOUT
+        value: 30
+      - key: CONVERSATION_TIMEOUT
+        value: 30000
+      - key: MAX_CONVERSATION_TURNS
+        value: 20
+      - key: DEBUG
+        value: false
+      - key: ENABLE_CORS
+        value: true
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: ENABLE_CONVERSATION_LOGGING
+        value: true
