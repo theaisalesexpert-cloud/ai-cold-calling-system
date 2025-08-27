@@ -1,0 +1,66 @@
+{
+  "name": "ai-cold-calling-backend",
+  "version": "1.0.0",
+  "description": "Backend server for AI cold-calling system",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "build": "echo 'No build step required'",
+    "test": "jest",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
+  },
+  "keywords": [
+    "ai",
+    "cold-calling",
+    "twilio",
+    "openai",
+    "n8n"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.3.1",
+    "twilio": "^4.19.0",
+    "openai": "^4.20.1",
+    "axios": "^1.6.2",
+    "ws": "^8.14.2",
+    "uuid": "^9.0.1",
+    "googleapis": "^128.0.0",
+    "nodemailer": "^6.9.7",
+    "winston": "^3.11.0",
+    "express-rate-limit": "^7.1.5",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "multer": "^1.4.5-lts.1",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "eslint": "^8.55.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-n": "^16.4.0",
+    "eslint-plugin-promise": "^6.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "your-repo-url"
+  },
+  "bugs": {
+    "url": "your-repo-url/issues"
+  },
+  "homepage": "your-repo-url#readme"
+}
