@@ -7,11 +7,11 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const logger = require('./utils/logger');
+const { errorHandler } = require('./utils/errorHandler');
 const twilioRoutes = require('./controllers/twilioController');
 const callRoutes = require('./controllers/callController');
 const sheetsRoutes = require('./controllers/sheetsController');
 const healthRoutes = require('./controllers/healthController');
-const errorHandler = require('./utils/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -74,9 +74,6 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Raw body for Twilio webhooks
-app.use('/webhook/twilio', express.raw({ type: 'application/xml' }));
-
 // Routes
 app.use('/health', healthRoutes);
 app.use('/webhook/twilio', twilioRoutes);
@@ -84,7 +81,7 @@ app.use('/api/calls', callRoutes);
 app.use('/api/sheets', sheetsRoutes);
 
 // Root endpoint
-app.get('/', (req, res) => {
+app.get('/', (_, res) => {
   res.json({
     message: 'AI Cold-Calling System API',
     version: '1.0.0',
