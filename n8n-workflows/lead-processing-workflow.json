@@ -1,0 +1,215 @@
+{
+  "name": "AI Calling - Lead Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "sheetId": "YOUR_GOOGLE_SHEETS_ID",
+        "range": "A:Z",
+        "options": {
+          "useAppend": false
+        }
+      },
+      "name": "Google Sheets Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "google-sheets-trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "notEqual",
+              "value2": "called"
+            }
+          ]
+        }
+      },
+      "name": "Check if Not Called",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "id": "check-not-called"
+    },
+    {
+      "parameters": {
+        "url": "http://your-ai-calling-system.com/api/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpMethod": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\n  \"customerName\": \"{{ $json.customer_name }}\",\n  \"phoneNumber\": \"{{ $json.phone_number }}\",\n  \"email\": \"{{ $json.email }}\",\n  \"carModel\": \"{{ $json.car_model }}\",\n  \"leadSource\": \"{{ $json.lead_source || 'google_sheets' }}\",\n  \"priority\": \"{{ $json.priority || 'medium' }}\",\n  \"dealership\": \"{{ $json.dealership_name || 'Your Dealership' }}\",\n  \"preferences\": {\n    \"contactMethod\": \"phone\",\n    \"bestTimeToCall\": \"{{ $json.best_time || 'any' }}\",\n    \"timezone\": \"{{ $json.timezone || 'America/New_York' }}\"\n  }\n}"
+      },
+      "name": "Create Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 200],
+      "id": "create-lead"
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "name": "Wait 5 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [900, 200],
+      "id": "wait-5-seconds"
+    },
+    {
+      "parameters": {
+        "url": "http://your-ai-calling-system.com/webhook/call/initiate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpMethod": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\n  \"customer_name\": \"{{ $json.customer_name }}\",\n  \"phone_number\": \"{{ $json.phone_number }}\",\n  \"car_model\": \"{{ $json.car_model }}\",\n  \"dealership_name\": \"{{ $json.dealership_name || 'Your Dealership' }}\",\n  \"bot_name\": \"{{ $json.bot_name || 'Sarah' }}\",\n  \"priority\": \"{{ $json.priority || 'medium' }}\",\n  \"lead_source\": \"google_sheets\",\n  \"scheduled_time\": \"{{ $json.scheduled_time }}\"\n}"
+      },
+      "name": "Initiate Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 200],
+      "id": "initiate-call"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "resource": "sheet",
+        "operation": "update",
+        "sheetId": "YOUR_GOOGLE_SHEETS_ID",
+        "range": "A:Z",
+        "keyRow": 1,
+        "dataMode": "defineBelow",
+        "valueInputMode": "raw",
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "status",
+              "value": "calling"
+            },
+            {
+              "column": "call_initiated_at",
+              "value": "={{ $now }}"
+            },
+            {
+              "column": "last_updated",
+              "value": "={{ $now }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Update Status to Calling",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [1340, 200],
+      "id": "update-status-calling"
+    },
+    {
+      "parameters": {
+        "mode": "webhook",
+        "webhook": "call-results"
+      },
+      "name": "Wait for Call Results",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1560, 200],
+      "id": "wait-call-results"
+    }
+  ],
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check if Not Called",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Not Called": {
+      "main": [
+        [
+          {
+            "node": "Create Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead": {
+      "main": [
+        [
+          {
+            "node": "Wait 5 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Initiate Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initiate Call": {
+      "main": [
+        [
+          {
+            "node": "Update Status to Calling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status to Calling": {
+      "main": [
+        [
+          {
+            "node": "Wait for Call Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z",
+      "id": "ai-calling",
+      "name": "AI Calling"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "1"
+}
