@@ -264,11 +264,26 @@ class ConversationService {
 
       // Send follow-up email if needed
       if (conversation.context.emailCollected && conversation.context.customerEmail) {
-        await emailService.sendSimilarCarsEmail(
-          conversation.context.customerEmail,
-          conversation.customerData.name,
-          conversation.customerData.carModel
-        );
+        try {
+          const emailResult = await emailService.sendSimilarCarsEmail(
+            conversation.context.customerEmail,
+            conversation.customerData.name,
+            conversation.customerData.carModel
+          );
+
+          if (!emailResult.success) {
+            callLogger.warn('Email service unavailable, skipping follow-up email', {
+              customerEmail: conversation.context.customerEmail,
+              reason: emailResult.message || emailResult.error
+            });
+          }
+        } catch (error) {
+          callLogger.error('Failed to send follow-up email', {
+            error: error.message,
+            customerEmail: conversation.context.customerEmail
+          });
+          // Don't throw error - email failure shouldn't break the call flow
+        }
       }
 
       callLogger.info('Conversation finalized', {
@@ -317,7 +332,19 @@ class ConversationService {
    * Get conversation by call SID
    */
   getConversation(callSid) {
-    return this.activeConversations.get(callSid);
+    const conversation = this.activeConversations.get(callSid);
+    if (!conversation) {
+      callLogger.warn('Conversation not found', { callSid });
+      return null;
+    }
+    return conversation;
+  }
+
+  /**
+   * Get active conversation (alias for getConversation)
+   */
+  getActiveConversation(callSid) {
+    return this.getConversation(callSid);
   }
 
   /**

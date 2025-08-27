@@ -7,14 +7,41 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const logger = require('./utils/logger');
+const { errorHandler } = require('./utils/errorHandler');
 const twilioRoutes = require('./controllers/twilioController');
 const callRoutes = require('./controllers/callController');
 const sheetsRoutes = require('./controllers/sheetsController');
 const healthRoutes = require('./controllers/healthController');
-const errorHandler = require('./utils/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Log startup information
+logger.info('Starting AI Cold-Calling System', {
+  nodeVersion: process.version,
+  environment: process.env.NODE_ENV,
+  port: PORT
+});
+
+// Check critical environment variables
+const requiredEnvVars = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'OPENAI_API_KEY'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  logger.error('Missing required environment variables', { missingEnvVars });
+  logger.info('The application will start but some features may not work properly');
+}
+
+// Log optional environment variables status
+const optionalEnvVars = {
+  'GMAIL_USER': !!process.env.GMAIL_USER,
+  'GMAIL_APP_PASSWORD': !!process.env.GMAIL_APP_PASSWORD,
+  'GOOGLE_SHEETS_ID': !!process.env.GOOGLE_SHEETS_ID,
+  'ELEVENLABS_API_KEY': !!process.env.ELEVENLABS_API_KEY,
+  'DEEPGRAM_API_KEY': !!process.env.DEEPGRAM_API_KEY
+};
+
+logger.info('Optional services configuration', optionalEnvVars);
 
 // Security middleware
 app.use(helmet());
@@ -47,9 +74,6 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Raw body for Twilio webhooks
-app.use('/webhook/twilio', express.raw({ type: 'application/xml' }));
-
 // Routes
 app.use('/health', healthRoutes);
 app.use('/webhook/twilio', twilioRoutes);
@@ -57,7 +81,7 @@ app.use('/api/calls', callRoutes);
 app.use('/api/sheets', sheetsRoutes);
 
 // Root endpoint
-app.get('/', (req, res) => {
+app.get('/', (_, res) => {
   res.json({
     message: 'AI Cold-Calling System API',
     version: '1.0.0',

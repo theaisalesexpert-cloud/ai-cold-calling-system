@@ -4,6 +4,39 @@ Common issues and solutions for the AI Cold-Calling System.
 
 ## 🚨 Common Issues
 
+### 0. Render.com Deployment Issues
+
+#### Issue: App fails to start on Render
+
+**Symptoms:**
+- "Failed to initialize email service" error
+- App crashes during startup
+- Service shows as "Deploy failed"
+
+**Solutions:**
+
+1. **Email service initialization error** (Most common):
+   ```bash
+   # The app now handles missing Gmail credentials gracefully
+   # Add these environment variables in Render dashboard:
+   GMAIL_USER=your-email@gmail.com
+   GMAIL_APP_PASSWORD=your_16_char_app_password
+   ```
+
+2. **Missing environment variables**:
+   - Check Render dashboard → Environment tab
+   - Ensure all required variables are set
+   - Verify no typos in variable names
+
+3. **Port configuration**:
+   ```bash
+   # Set in Render dashboard:
+   PORT=10000
+   # Or remove PORT variable (Render sets automatically)
+   ```
+
+**Quick Fix**: See [Render Troubleshooting Guide](render-troubleshooting.md) for detailed solutions.
+
 ### 1. Call Initiation Problems
 
 #### Issue: "Failed to initiate call" error

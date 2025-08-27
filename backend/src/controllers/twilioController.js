@@ -2,73 +2,134 @@ const express = require('express');
 const twilio = require('twilio');
 const { twilioLogger } = require('../utils/logger');
 const { catchAsync } = require('../utils/errorHandler');
-const twilioService = require('../services/twilioService');
 const conversationService = require('../services/conversationService');
 const googleSheetsService = require('../services/googleSheetsService');
 
 const router = express.Router();
+const VoiceResponse = twilio.twiml.VoiceResponse;
 
 /**
  * Handle incoming voice calls (initial webhook)
  */
 router.post('/voice', catchAsync(async (req, res) => {
   const { CallSid, From, To } = req.body;
-  const customerId = req.query.customerId;
-  const customerName = decodeURIComponent(req.query.customerName || '');
-  const carModel = decodeURIComponent(req.query.carModel || '');
 
   twilioLogger.info('Voice webhook received', {
     callSid: CallSid,
     from: From,
     to: To,
-    customerId
+    body: req.body,
+    query: req.query
   });
 
   try {
-    // Get customer data
-    let customerData;
-    if (customerId) {
+    // Create TwiML response
+    const twiml = new VoiceResponse();
+
+    // Simple greeting that always works
+    twiml.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, 'Hello! This is Sarah from Premier Auto. Thank you for your interest in our vehicles.');
+
+    // Pause for a moment
+    twiml.pause({ length: 1 });
+
+    // Try to get customer data and start conversation
+    let customerData = null;
+    try {
+      // Try to find customer by phone number
       const customers = await googleSheetsService.getCustomerData();
-      customerData = customers.find(c => c.id === customerId || c.customerId === customerId);
+      customerData = customers.find(c =>
+        c.phone === From ||
+        c.phone === From.replace('+1', '') ||
+        c.phone === '+1' + From.replace('+', '')
+      );
+    } catch (error) {
+      twilioLogger.warn('Could not fetch customer data', { error: error.message });
     }
 
+    // Use default customer data if not found
     if (!customerData) {
       customerData = {
-        id: customerId || 'unknown',
-        name: customerName || 'Customer',
+        id: `TEMP_${Date.now()}`,
+        name: 'Valued Customer',
         phone: From,
-        carModel: carModel || 'vehicle',
-        dealershipName: 'Premier Auto'
+        carModel: 'one of our vehicles',
+        dealershipName: 'Premier Auto',
+        enquiryDate: new Date().toISOString().split('T')[0]
       };
     }
 
-    // Generate initial greeting
-    const response = await conversationService.generateInitialGreeting(CallSid, customerData);
-    
-    // Generate TwiML response
-    const twiml = twilioService.generateGatherResponse(
-      response.response,
-      `${process.env.TWILIO_WEBHOOK_URL}/gather`,
-      10
-    );
+    // Start conversation
+    let conversationResponse;
+    try {
+      conversationResponse = await conversationService.generateInitialGreeting(CallSid, customerData);
+    } catch (error) {
+      twilioLogger.warn('Could not generate AI response, using fallback', { error: error.message });
+      conversationResponse = {
+        response: `Hi ${customerData.name}, are you still interested in ${customerData.carModel}?`,
+        nextStep: 'interest_check'
+      };
+    }
 
+    // Add the AI response
+    twiml.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, conversationResponse.response);
+
+    // Gather speech input
+    const gather = twiml.gather({
+      input: 'speech',
+      timeout: 10,
+      speechTimeout: 'auto',
+      action: '/webhook/twilio/gather',
+      method: 'POST'
+    });
+
+    gather.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, 'Please let me know if you are still interested.');
+
+    // Fallback if no input
+    twiml.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, 'I did not hear a response. Thank you for your time. Goodbye.');
+
+    twiml.hangup();
+
+    // Set response headers and send
     res.type('text/xml');
-    res.send(twiml);
+    res.send(twiml.toString());
+
+    twilioLogger.info('TwiML response sent successfully', {
+      callSid: CallSid,
+      customerData: customerData ? customerData.id : 'unknown',
+      twimlLength: twiml.toString().length
+    });
 
   } catch (error) {
     twilioLogger.error('Error in voice webhook', {
       error: error.message,
+      stack: error.stack,
       callSid: CallSid
     });
 
-    // Fallback response
-    const twiml = twilioService.generateVoiceResponse(
-      "I'm sorry, we're experiencing technical difficulties. We'll call you back shortly. Thank you!",
-      { type: 'hangup' }
-    );
+    // Fallback TwiML - always works
+    const fallbackTwiml = new VoiceResponse();
+
+    fallbackTwiml.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, 'Hello! Thank you for calling Premier Auto. We are experiencing technical difficulties. Please call back later. Goodbye.');
+
+    fallbackTwiml.hangup();
 
     res.type('text/xml');
-    res.send(twiml);
+    res.send(fallbackTwiml.toString());
   }
 }));
 
@@ -85,18 +146,25 @@ router.post('/gather', catchAsync(async (req, res) => {
   });
 
   try {
-    const conversation = conversationService.getConversation(CallSid);
-    
+    let conversation;
+    try {
+      conversation = conversationService.getConversation(CallSid);
+    } catch (error) {
+      twilioLogger.warn('Could not get conversation, creating fallback', { error: error.message });
+    }
+
     if (!conversation) {
-      twilioLogger.error('Conversation not found for gather', { callSid: CallSid });
-      
-      const twiml = twilioService.generateVoiceResponse(
-        "I'm sorry, there was an issue with our system. Thank you for calling!",
-        { type: 'hangup' }
-      );
-      
+      twilioLogger.warn('Conversation not found for gather, ending call', { callSid: CallSid });
+
+      const twiml = new VoiceResponse();
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, "Thank you for your interest. We'll follow up with you soon. Goodbye!");
+      twiml.hangup();
+
       res.type('text/xml');
-      return res.send(twiml);
+      return res.send(twiml.toString());
     }
 
     // Check confidence level
@@ -106,58 +174,101 @@ router.post('/gather', catchAsync(async (req, res) => {
         callSid: CallSid,
         confidence: Confidence
       });
-      
-      const twiml = twilioService.generateGatherResponse(
-        "I'm sorry, I didn't catch that. Could you please repeat?",
-        `${process.env.TWILIO_WEBHOOK_URL}/gather`,
-        8
-      );
-      
+
+      const twiml = new VoiceResponse();
+      const gather = twiml.gather({
+        input: 'speech',
+        timeout: 8,
+        speechTimeout: 'auto',
+        action: '/webhook/twilio/gather',
+        method: 'POST'
+      });
+
+      gather.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, "I'm sorry, I didn't catch that. Could you please repeat?");
+
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, "Thank you for your time. Goodbye!");
+      twiml.hangup();
+
       res.type('text/xml');
-      return res.send(twiml);
+      return res.send(twiml.toString());
     }
 
     // Process customer input
-    const result = await conversationService.processCustomerInput(
-      CallSid,
-      SpeechResult
-    );
+    let result;
+    try {
+      result = await conversationService.processCustomerInput(CallSid, SpeechResult);
+    } catch (error) {
+      twilioLogger.error('Error processing customer input', { error: error.message });
+
+      const twiml = new VoiceResponse();
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, "Thank you for your interest. We'll be in touch soon. Goodbye!");
+      twiml.hangup();
+
+      res.type('text/xml');
+      return res.send(twiml.toString());
+    }
+
+    const twiml = new VoiceResponse();
 
     if (result.shouldContinue) {
       // Continue conversation
-      const twiml = twilioService.generateGatherResponse(
-        result.response,
-        `${process.env.TWILIO_WEBHOOK_URL}/gather`,
-        10
-      );
-      
-      res.type('text/xml');
-      res.send(twiml);
+      const gather = twiml.gather({
+        input: 'speech',
+        timeout: 10,
+        speechTimeout: 'auto',
+        action: '/webhook/twilio/gather',
+        method: 'POST'
+      });
+
+      gather.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, result.response);
+
+      // Fallback if no response
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, "Thank you for your time. We'll follow up with you. Goodbye!");
+      twiml.hangup();
     } else {
       // End conversation
-      const twiml = twilioService.generateVoiceResponse(
-        result.response,
-        { type: 'hangup' }
-      );
-      
-      res.type('text/xml');
-      res.send(twiml);
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, result.response);
+      twiml.hangup();
     }
+
+    res.type('text/xml');
+    res.send(twiml.toString());
 
   } catch (error) {
     twilioLogger.error('Error in gather webhook', {
       error: error.message,
+      stack: error.stack,
       callSid: CallSid
     });
 
     // Fallback response
-    const twiml = twilioService.generateVoiceResponse(
-      "Thank you for your time. We'll follow up with you soon. Goodbye!",
-      { type: 'hangup' }
-    );
+    const fallbackTwiml = new VoiceResponse();
+    fallbackTwiml.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, "Thank you for your time. We'll follow up with you soon. Goodbye!");
+    fallbackTwiml.hangup();
 
     res.type('text/xml');
-    res.send(twiml);
+    res.send(fallbackTwiml.toString());
   }
 }));
 
@@ -180,10 +291,19 @@ router.post('/status', catchAsync(async (req, res) => {
     switch (CallStatus) {
       case 'completed':
         // Clean up conversation
-        conversationService.cleanupConversation(CallSid);
-        
+        try {
+          conversationService.cleanupConversation(CallSid);
+        } catch (error) {
+          twilioLogger.warn('Error cleaning up conversation', { error: error.message });
+        }
+
         // Update call duration in sheets if conversation exists
-        const conversation = conversationService.getConversation(CallSid);
+        let conversation;
+        try {
+          conversation = conversationService.getConversation(CallSid);
+        } catch (error) {
+          twilioLogger.warn('Could not get conversation for status update', { error: error.message });
+        }
         if (conversation && CallDuration) {
           await googleSheetsService.updateCustomerRecord(
             conversation.customerData.id,
@@ -289,16 +409,22 @@ router.post('/machine', catchAsync(async (req, res) => {
 
   if (AnsweredBy === 'machine_start' || AnsweredBy === 'machine_end_beep') {
     // Leave voicemail message
-    const twiml = twilioService.generateVoiceResponse(
-      "Hi, this is Sarah from Premier Auto. We're following up on your recent car inquiry. Please call us back at your convenience at 123-456-7890. Thank you!",
-      { type: 'hangup' }
-    );
-    
+    const twiml = new VoiceResponse();
+    twiml.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, "Hi, this is Sarah from Premier Auto. We're following up on your recent car inquiry. Please call us back at your convenience. Thank you!");
+    twiml.hangup();
+
     res.type('text/xml');
-    res.send(twiml);
+    res.send(twiml.toString());
   } else {
-    // Continue with normal flow
-    res.redirect(307, `${process.env.TWILIO_WEBHOOK_URL}/voice`);
+    // Continue with normal flow - redirect to voice webhook
+    const twiml = new VoiceResponse();
+    twiml.redirect(`${process.env.BASE_URL}/webhook/twilio/voice`);
+
+    res.type('text/xml');
+    res.send(twiml.toString());
   }
 }));
 
@@ -311,6 +437,35 @@ router.get('/test', (req, res) => {
     timestamp: new Date().toISOString(),
     activeConversations: conversationService.getActiveConversationsCount()
   });
+});
+
+/**
+ * Test TwiML generation
+ */
+router.get('/test-twiml', (req, res) => {
+  try {
+    const twiml = new VoiceResponse();
+
+    twiml.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, 'Hello! This is a test of the TwiML generation. If you can hear this, the system is working correctly.');
+
+    twiml.pause({ length: 1 });
+
+    twiml.say({
+      voice: 'alice',
+      language: 'en-US'
+    }, 'Thank you for testing. Goodbye!');
+
+    twiml.hangup();
+
+    res.type('text/xml');
+    res.send(twiml.toString());
+  } catch (error) {
+    twilioLogger.error('Error generating test TwiML', { error: error.message });
+    res.status(500).json({ error: 'Failed to generate TwiML' });
+  }
 });
 
 module.exports = router;

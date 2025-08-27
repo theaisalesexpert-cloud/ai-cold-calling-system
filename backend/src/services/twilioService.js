@@ -19,21 +19,22 @@ class TwilioService {
     try {
       twilioLogger.info('Initiating call', { toNumber, customerName: customerData.name });
 
+      // Construct webhook URL with customer data
+      const webhookUrl = `${this.webhookUrl}/webhook/twilio/voice?customerId=${customerData.id}&customerName=${encodeURIComponent(customerData.name)}&carModel=${encodeURIComponent(customerData.carModel)}`;
+
       const call = await this.client.calls.create({
         to: toNumber,
         from: this.fromNumber,
-        url: `${this.webhookUrl}/voice`,
+        url: webhookUrl,
         method: 'POST',
-        statusCallback: `${this.webhookUrl}/status`,
+        statusCallback: `${this.webhookUrl}/webhook/twilio/status`,
         statusCallbackMethod: 'POST',
         statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
         record: true,
-        recordingStatusCallback: `${this.webhookUrl}/recording`,
+        recordingStatusCallback: `${this.webhookUrl}/webhook/twilio/recording`,
         timeout: parseInt(process.env.CALL_TIMEOUT) || 30,
         machineDetection: 'Enable',
-        machineDetectionTimeout: 10,
-        // Pass customer data as URL parameters
-        url: `${this.webhookUrl}/voice?customerId=${customerData.id}&customerName=${encodeURIComponent(customerData.name)}&carModel=${encodeURIComponent(customerData.carModel)}`
+        machineDetectionTimeout: 10
       });
 
       twilioLogger.info('Call initiated successfully', { 
