@@ -1,11 +1,11 @@
 const { createClient } = require('@deepgram/sdk');
-const { deepgramLogger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { AppError } = require('../utils/errorHandler');
 
 class DeepgramService {
   constructor() {
     if (!process.env.DEEPGRAM_API_KEY) {
-      deepgramLogger.warn('Deepgram API key not configured - service disabled');
+      logger.warn('Deepgram API key not configured - service disabled');
       this.enabled = false;
       return;
     }
@@ -15,7 +15,7 @@ class DeepgramService {
     this.language = process.env.DEEPGRAM_LANGUAGE || 'en-US';
     this.enabled = true;
 
-    deepgramLogger.info('Deepgram service initialized', {
+    logger.info('Deepgram service initialized', {
       model: this.model,
       language: this.language
     });
@@ -30,7 +30,7 @@ class DeepgramService {
     }
 
     try {
-      deepgramLogger.info('Starting transcription from URL', { audioUrl });
+      logger.info('Starting transcription from URL', { audioUrl });
 
       const { result, error } = await this.client.listen.prerecorded.transcribeUrl(
         { url: audioUrl },
@@ -56,7 +56,7 @@ class DeepgramService {
       const sentiment = result.results.sentiment?.segments?.[0]?.sentiment;
       const topics = result.results.topics?.segments?.[0]?.topics || [];
 
-      deepgramLogger.info('Transcription completed', {
+      logger.info('Transcription completed', {
         transcriptLength: transcript.length,
         confidence,
         sentiment,
@@ -75,7 +75,7 @@ class DeepgramService {
         }
       };
     } catch (error) {
-      deepgramLogger.error('Transcription failed', {
+      logger.error('Transcription failed', {
         error: error.message,
         audioUrl
       });
@@ -92,7 +92,7 @@ class DeepgramService {
     }
 
     try {
-      deepgramLogger.info('Starting transcription from buffer', {
+      logger.info('Starting transcription from buffer', {
         bufferSize: audioBuffer.length,
         mimeType
       });
@@ -116,7 +116,7 @@ class DeepgramService {
       const transcript = result.results.channels[0].alternatives[0].transcript;
       const confidence = result.results.channels[0].alternatives[0].confidence;
 
-      deepgramLogger.info('Buffer transcription completed', {
+      logger.info('Buffer transcription completed', {
         transcriptLength: transcript.length,
         confidence
       });
@@ -130,7 +130,7 @@ class DeepgramService {
         }
       };
     } catch (error) {
-      deepgramLogger.error('Buffer transcription failed', {
+      logger.error('Buffer transcription failed', {
         error: error.message,
         bufferSize: audioBuffer.length
       });
@@ -157,7 +157,7 @@ class DeepgramService {
       });
 
       connection.on('open', () => {
-        deepgramLogger.info('Real-time transcription connection opened');
+        logger.info('Real-time transcription connection opened');
       });
 
       connection.on('transcript', (data) => {
@@ -173,17 +173,17 @@ class DeepgramService {
       });
 
       connection.on('error', (error) => {
-        deepgramLogger.error('Real-time transcription error', { error });
+        logger.error('Real-time transcription error', { error });
         onError(error);
       });
 
       connection.on('close', () => {
-        deepgramLogger.info('Real-time transcription connection closed');
+        logger.info('Real-time transcription connection closed');
       });
 
       return connection;
     } catch (error) {
-      deepgramLogger.error('Failed to setup real-time transcription', {
+      logger.error('Failed to setup real-time transcription', {
         error: error.message
       });
       throw new AppError(`Real-time transcription setup failed: ${error.message}`, 500);
@@ -208,7 +208,7 @@ class DeepgramService {
         confidence: result.confidence
       };
     } catch (error) {
-      deepgramLogger.error('Conversation analysis failed', {
+      logger.error('Conversation analysis failed', {
         error: error.message,
         audioUrl
       });

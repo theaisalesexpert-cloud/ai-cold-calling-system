@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { audioLogger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { catchAsync, AppError } = require('../utils/errorHandler');
 
 const router = express.Router();
@@ -20,7 +20,7 @@ router.get('/:filename', catchAsync(async (req, res) => {
   const audioDir = path.join(__dirname, '../../temp/audio');
   const filepath = path.join(audioDir, filename);
 
-  audioLogger.info('Audio file requested', { filename, filepath });
+  logger.info('Audio file requested', { filename, filepath });
 
   // Check if file exists
   if (!fs.existsSync(filepath)) {
@@ -50,7 +50,7 @@ router.get('/:filename', catchAsync(async (req, res) => {
       const chunksize = (end - start) + 1;
 
       const stream = fs.createReadStream(filepath, { start, end });
-      
+
       res.status(206).set({
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Content-Length': chunksize
@@ -63,14 +63,14 @@ router.get('/:filename', catchAsync(async (req, res) => {
       stream.pipe(res);
     }
 
-    audioLogger.info('Audio file served', { 
-      filename, 
-      fileSize, 
-      rangeRequest: !!range 
+    logger.info('Audio file served', {
+      filename,
+      fileSize,
+      rangeRequest: !!range
     });
 
   } catch (error) {
-    audioLogger.error('Failed to serve audio file', {
+    logger.error('Failed to serve audio file', {
       error: error.message,
       filename,
       filepath
@@ -110,7 +110,7 @@ router.get('/', catchAsync(async (req, res) => {
     });
 
   } catch (error) {
-    audioLogger.error('Failed to list audio files', {
+    logger.error('Failed to list audio files', {
       error: error.message
     });
     throw new AppError('Failed to list audio files', 500);
@@ -146,7 +146,7 @@ router.delete('/cleanup', catchAsync(async (req, res) => {
       }
     });
 
-    audioLogger.info('Audio cleanup completed', {
+    logger.info('Audio cleanup completed', {
       deletedCount,
       deletedSize,
       maxAgeHours
@@ -160,7 +160,7 @@ router.delete('/cleanup', catchAsync(async (req, res) => {
     });
 
   } catch (error) {
-    audioLogger.error('Failed to cleanup audio files', {
+    logger.error('Failed to cleanup audio files', {
       error: error.message
     });
     throw new AppError('Failed to cleanup audio files', 500);

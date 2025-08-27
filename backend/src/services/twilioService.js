@@ -1,5 +1,5 @@
 const twilio = require('twilio');
-const { twilioLogger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { AppError } = require('../utils/errorHandler');
 const elevenlabsService = require('./elevenlabsService');
 const deepgramService = require('./deepgramService');
@@ -15,7 +15,7 @@ class TwilioService {
     this.useElevenLabs = process.env.USE_ELEVENLABS === 'true';
     this.useDeepgram = process.env.USE_DEEPGRAM === 'true';
 
-    twilioLogger.info('Twilio service initialized', {
+    logger.info('Twilio service initialized', {
       useElevenLabs: this.useElevenLabs,
       useDeepgram: this.useDeepgram
     });
@@ -26,7 +26,7 @@ class TwilioService {
    */
   async initiateCall(toNumber, customerData) {
     try {
-      twilioLogger.info('Initiating call', { toNumber, customerName: customerData.name });
+      logger.info('Initiating call', { toNumber, customerName: customerData.name });
 
       // Construct webhook URL with customer data
       const webhookUrl = `${this.webhookUrl}/webhook/twilio/voice?customerId=${customerData.id}&customerName=${encodeURIComponent(customerData.name)}&carModel=${encodeURIComponent(customerData.carModel)}`;
@@ -46,10 +46,10 @@ class TwilioService {
         machineDetectionTimeout: 10
       });
 
-      twilioLogger.info('Call initiated successfully', { 
-        callSid: call.sid, 
+      logger.info('Call initiated successfully', {
+        callSid: call.sid,
         toNumber,
-        status: call.status 
+        status: call.status
       });
 
       return {
@@ -59,10 +59,10 @@ class TwilioService {
         from: call.from
       };
     } catch (error) {
-      twilioLogger.error('Failed to initiate call', { 
-        error: error.message, 
+      logger.error('Failed to initiate call', {
+        error: error.message,
         toNumber,
-        code: error.code 
+        code: error.code
       });
       throw new AppError(`Failed to initiate call: ${error.message}`, 500);
     }
@@ -89,7 +89,7 @@ class TwilioService {
             }, message);
           }
         } catch (error) {
-          twilioLogger.warn('ElevenLabs failed, using Twilio TTS', { error: error.message });
+          logger.warn('ElevenLabs failed, using Twilio TTS', { error: error.message });
           twiml.say({
             voice: 'alice',
             language: 'en-US'
@@ -183,13 +183,13 @@ class TwilioService {
   async updateCallStatus(callSid, status) {
     try {
       const call = await this.client.calls(callSid).update({ status });
-      twilioLogger.info('Call status updated', { callSid, status });
+      logger.info('Call status updated', { callSid, status });
       return call;
     } catch (error) {
-      twilioLogger.error('Failed to update call status', { 
-        error: error.message, 
-        callSid, 
-        status 
+      logger.error('Failed to update call status', {
+        error: error.message,
+        callSid,
+        status
       });
       throw new AppError(`Failed to update call status: ${error.message}`, 500);
     }
@@ -211,9 +211,9 @@ class TwilioService {
         direction: call.direction
       };
     } catch (error) {
-      twilioLogger.error('Failed to get call details', { 
-        error: error.message, 
-        callSid 
+      logger.error('Failed to get call details', {
+        error: error.message,
+        callSid
       });
       throw new AppError(`Failed to get call details: ${error.message}`, 500);
     }
@@ -225,9 +225,9 @@ class TwilioService {
   async endCall(callSid) {
     try {
       await this.updateCallStatus(callSid, 'completed');
-      twilioLogger.info('Call ended', { callSid });
+      logger.info('Call ended', { callSid });
     } catch (error) {
-      twilioLogger.error('Failed to end call', { error: error.message, callSid });
+      logger.error('Failed to end call', { error: error.message, callSid });
       throw error;
     }
   }
@@ -238,7 +238,7 @@ class TwilioService {
   async transcribeRecording(recordingUrl) {
     if (this.useDeepgram) {
       try {
-        twilioLogger.info('Using Deepgram for transcription', { recordingUrl });
+        logger.info('Using Deepgram for transcription', { recordingUrl });
         const result = await deepgramService.transcribeFromUrl(recordingUrl);
 
         return {
@@ -250,7 +250,7 @@ class TwilioService {
           metadata: result.metadata
         };
       } catch (error) {
-        twilioLogger.warn('Deepgram transcription failed, no fallback available', {
+        logger.warn('Deepgram transcription failed, no fallback available', {
           error: error.message,
           recordingUrl
         });
@@ -270,7 +270,7 @@ class TwilioService {
       try {
         const analysis = await deepgramService.analyzeConversation(recordingUrl);
 
-        twilioLogger.info('Call analysis completed', {
+        logger.info('Call analysis completed', {
           recordingUrl,
           sentiment: analysis?.sentiment,
           topicsCount: analysis?.topics?.length || 0
@@ -278,7 +278,7 @@ class TwilioService {
 
         return analysis;
       } catch (error) {
-        twilioLogger.error('Call analysis failed', {
+        logger.error('Call analysis failed', {
           error: error.message,
           recordingUrl
         });

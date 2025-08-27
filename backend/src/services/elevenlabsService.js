@@ -1,13 +1,13 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { elevenlabsLogger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { AppError } = require('../utils/errorHandler');
 
 class ElevenLabsService {
   constructor() {
     if (!process.env.ELEVENLABS_API_KEY) {
-      elevenlabsLogger.warn('ElevenLabs API key not configured - service disabled');
+      logger.warn('ElevenLabs API key not configured - service disabled');
       this.enabled = false;
       return;
     }
@@ -24,7 +24,7 @@ class ElevenLabsService {
       fs.mkdirSync(this.audioDir, { recursive: true });
     }
 
-    elevenlabsLogger.info('ElevenLabs service initialized', {
+    logger.info('ElevenLabs service initialized', {
       voiceId: this.voiceId,
       modelId: this.modelId
     });
@@ -42,7 +42,7 @@ class ElevenLabsService {
       const voiceId = options.voiceId || this.voiceId;
       const modelId = options.modelId || this.modelId;
 
-      elevenlabsLogger.info('Generating speech', {
+      logger.info('Generating speech', {
         textLength: text.length,
         voiceId,
         modelId
@@ -77,7 +77,7 @@ class ElevenLabsService {
       // Save audio file
       fs.writeFileSync(filepath, audioBuffer);
 
-      elevenlabsLogger.info('Speech generated successfully', {
+      logger.info('Speech generated successfully', {
         filename,
         audioSize: audioBuffer.length,
         textLength: text.length
@@ -91,7 +91,7 @@ class ElevenLabsService {
         size: audioBuffer.length
       };
     } catch (error) {
-      elevenlabsLogger.error('Speech generation failed', {
+      logger.error('Speech generation failed', {
         error: error.message,
         textLength: text.length,
         status: error.response?.status,
@@ -115,7 +115,7 @@ class ElevenLabsService {
       // Return URL that Twilio can access
       const audioUrl = `${baseUrl}/audio/${result.filename}`;
       
-      elevenlabsLogger.info('Speech URL generated for Twilio', {
+      logger.info('Speech URL generated for Twilio', {
         audioUrl,
         filename: result.filename
       });
@@ -126,7 +126,7 @@ class ElevenLabsService {
         filepath: result.filepath
       };
     } catch (error) {
-      elevenlabsLogger.error('Failed to generate speech for Twilio', {
+      logger.error('Failed to generate speech for Twilio', {
         error: error.message,
         text: text.substring(0, 100)
       });
@@ -158,13 +158,13 @@ class ElevenLabsService {
         available_for_tiers: voice.available_for_tiers
       }));
 
-      elevenlabsLogger.info('Retrieved available voices', {
+      logger.info('Retrieved available voices', {
         voiceCount: voices.length
       });
 
       return voices;
     } catch (error) {
-      elevenlabsLogger.error('Failed to get voices', {
+      logger.error('Failed to get voices', {
         error: error.message
       });
       throw new AppError(`Failed to get voices: ${error.message}`, 500);
@@ -188,7 +188,7 @@ class ElevenLabsService {
 
       return response.data;
     } catch (error) {
-      elevenlabsLogger.error('Failed to get voice details', {
+      logger.error('Failed to get voice details', {
         error: error.message,
         voiceId
       });
@@ -217,13 +217,13 @@ class ElevenLabsService {
       });
 
       if (deletedCount > 0) {
-        elevenlabsLogger.info('Cleaned up old audio files', {
+        logger.info('Cleaned up old audio files', {
           deletedCount,
           maxAgeHours
         });
       }
     } catch (error) {
-      elevenlabsLogger.error('Failed to cleanup audio files', {
+      logger.error('Failed to cleanup audio files', {
         error: error.message
       });
     }
@@ -252,7 +252,7 @@ class ElevenLabsService {
         next_character_count_reset_unix: response.data.subscription.next_character_count_reset_unix
       };
     } catch (error) {
-      elevenlabsLogger.error('Failed to get usage stats', {
+      logger.error('Failed to get usage stats', {
         error: error.message
       });
       return null;
