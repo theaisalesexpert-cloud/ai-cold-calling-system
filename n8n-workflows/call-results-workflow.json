@@ -1,0 +1,367 @@
+{
+  "name": "AI Calling - Call Results Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "call-completed",
+        "options": {}
+      },
+      "name": "Call Completed Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "call-completed",
+      "id": "call-completed-webhook"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "resource": "sheet",
+        "operation": "update",
+        "sheetId": "YOUR_GOOGLE_SHEETS_ID",
+        "range": "A:Z",
+        "keyRow": 1,
+        "dataMode": "defineBelow",
+        "valueInputMode": "raw",
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "call_status",
+              "value": "={{ $json.body.call_status }}"
+            },
+            {
+              "column": "call_outcome",
+              "value": "={{ $json.body.outcome }}"
+            },
+            {
+              "column": "call_duration",
+              "value": "={{ $json.body.call_duration }}"
+            },
+            {
+              "column": "sentiment",
+              "value": "={{ $json.body.sentiment_summary }}"
+            },
+            {
+              "column": "next_action",
+              "value": "={{ $json.body.next_action }}"
+            },
+            {
+              "column": "email_collected",
+              "value": "={{ $json.body.extracted_data.email_address || '' }}"
+            },
+            {
+              "column": "appointment_scheduled",
+              "value": "={{ $json.body.outcome === 'appointment_scheduled' ? 'Yes' : 'No' }}"
+            },
+            {
+              "column": "call_notes",
+              "value": "={{ $json.body.call_notes }}"
+            },
+            {
+              "column": "last_updated",
+              "value": "={{ $now }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Update Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [460, 300],
+      "id": "update-google-sheets"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.outcome }}",
+              "operation": "equal",
+              "value2": "appointment_scheduled"
+            }
+          ]
+        }
+      },
+      "name": "Appointment Scheduled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 200],
+      "id": "appointment-scheduled-check"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.outcome }}",
+              "operation": "equal",
+              "value2": "interested_similar"
+            }
+          ]
+        }
+      },
+      "name": "Interested in Similar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 400],
+      "id": "interested-similar-check"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.outcome }}",
+              "operation": "equal",
+              "value2": "callback_requested"
+            }
+          ]
+        }
+      },
+      "name": "Callback Requested?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 600],
+      "id": "callback-requested-check"
+    },
+    {
+      "parameters": {
+        "fromEmail": "sarah@yourdealership.com",
+        "toEmail": "={{ $json.body.extracted_data.email_address }}",
+        "subject": "Appointment Confirmation - {{ $json.body.car_model }}",
+        "emailType": "html",
+        "message": "<h2>🎉 Appointment Confirmed!</h2>\n<p>Hi {{ $json.body.customer_name }},</p>\n<p>Thank you for your interest in the <strong>{{ $json.body.car_model }}</strong>!</p>\n<p>Your appointment has been scheduled. We'll contact you shortly with the exact time and details.</p>\n<p><strong>What to expect:</strong></p>\n<ul>\n  <li>Test drive opportunity</li>\n  <li>Detailed vehicle inspection</li>\n  <li>Financing options discussion</li>\n  <li>Trade-in evaluation (if applicable)</li>\n</ul>\n<p>If you have any questions, please don't hesitate to call us at {{ $json.body.dealership_phone || '(555) 123-4567' }}.</p>\n<p>Best regards,<br>\n<strong>{{ $json.body.dealership_name }}</strong><br>\nYour trusted automotive partner</p>"
+      },
+      "name": "Send Appointment Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [900, 100],
+      "id": "send-appointment-email"
+    },
+    {
+      "parameters": {
+        "fromEmail": "sarah@yourdealership.com",
+        "toEmail": "={{ $json.body.extracted_data.email_address }}",
+        "subject": "Similar Cars You Might Love - {{ $json.body.dealership_name }}",
+        "emailType": "html",
+        "message": "<h2>🚗 Similar Cars You Might Love</h2>\n<p>Hi {{ $json.body.customer_name }},</p>\n<p>Thank you for your interest in the {{ $json.body.car_model }}. While that specific model might not be available, we have some fantastic similar options that you might love!</p>\n<p><strong>Here are some alternatives we recommend:</strong></p>\n<ul>\n  <li>Similar model with different trim levels</li>\n  <li>Comparable vehicles from the same manufacturer</li>\n  <li>Competitive models with similar features</li>\n</ul>\n<p>Would you like to schedule a time to see these options? We're confident we can find the perfect car for you!</p>\n<p>Call us at {{ $json.body.dealership_phone || '(555) 123-4567' }} or reply to this email.</p>\n<p>Best regards,<br>\n<strong>{{ $json.body.dealership_name }}</strong></p>"
+      },
+      "name": "Send Similar Cars Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "id": "send-similar-cars-email"
+    },
+    {
+      "parameters": {
+        "unit": "hours",
+        "amount": 2
+      },
+      "name": "Wait 2 Hours",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [900, 500],
+      "id": "wait-2-hours"
+    },
+    {
+      "parameters": {
+        "url": "http://your-ai-calling-system.com/webhook/call/initiate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpMethod": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\n  \"customer_name\": \"{{ $json.body.customer_name }}\",\n  \"phone_number\": \"{{ $json.body.phone_number }}\",\n  \"car_model\": \"{{ $json.body.car_model }}\",\n  \"dealership_name\": \"{{ $json.body.dealership_name }}\",\n  \"bot_name\": \"Sarah\",\n  \"priority\": \"high\",\n  \"lead_source\": \"callback_request\",\n  \"notes\": \"Customer requested callback\"\n}"
+      },
+      "name": "Schedule Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 500],
+      "id": "schedule-callback"
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "upsert",
+        "email": "={{ $json.body.extracted_data.email_address }}",
+        "additionalFields": {
+          "phone": "={{ $json.body.phone_number }}",
+          "firstname": "={{ $json.body.customer_name.split(' ')[0] }}",
+          "lastname": "={{ $json.body.customer_name.split(' ')[1] || '' }}",
+          "car_interest": "={{ $json.body.car_model }}",
+          "lead_status": "={{ $json.body.outcome }}",
+          "call_duration": "={{ $json.body.call_duration }}",
+          "sentiment": "={{ $json.body.sentiment_summary }}",
+          "last_call_date": "={{ $now }}",
+          "dealership": "={{ $json.body.dealership_name }}"
+        }
+      },
+      "name": "Update CRM Contact",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [460, 500],
+      "id": "update-crm-contact"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.outcome }}",
+              "operation": "equal",
+              "value2": "appointment_scheduled"
+            }
+          ]
+        }
+      },
+      "name": "Create Deal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 500],
+      "id": "create-deal-check"
+    },
+    {
+      "parameters": {
+        "resource": "deal",
+        "operation": "create",
+        "dealname": "{{ $json.body.car_model }} - {{ $json.body.customer_name }}",
+        "dealstage": "appointmentscheduled",
+        "additionalFields": {
+          "amount": "30000",
+          "dealtype": "newbusiness",
+          "pipeline": "default",
+          "closedate": "={{ DateTime.now().plus({days: 30}).toISO() }}",
+          "car_model": "={{ $json.body.car_model }}",
+          "lead_source": "ai_calling_system"
+        }
+      },
+      "name": "Create CRM Deal",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [900, 600],
+      "id": "create-crm-deal"
+    }
+  ],
+  "connections": {
+    "Call Completed Webhook": {
+      "main": [
+        [
+          {
+            "node": "Update Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update CRM Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Appointment Scheduled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Interested in Similar?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Callback Requested?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appointment Scheduled?": {
+      "main": [
+        [
+          {
+            "node": "Send Appointment Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interested in Similar?": {
+      "main": [
+        [
+          {
+            "node": "Send Similar Cars Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback Requested?": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2 Hours": {
+      "main": [
+        [
+          {
+            "node": "Schedule Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update CRM Contact": {
+      "main": [
+        [
+          {
+            "node": "Create Deal?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Deal?": {
+      "main": [
+        [
+          {
+            "node": "Create CRM Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z",
+      "id": "ai-calling",
+      "name": "AI Calling"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "1"
+}
