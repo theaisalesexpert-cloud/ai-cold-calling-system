@@ -1,0 +1,546 @@
+{
+  "name": "AI Cold-Calling System - Complete Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily Call Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "BASE_URL",
+              "value": "https://ai-cold-calling-system.onrender.com"
+            },
+            {
+              "name": "GOOGLE_SHEETS_ID",
+              "value": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+            },
+            {
+              "name": "GOOGLE_SERVICE_ACCOUNT_EMAIL",
+              "value": "your-service@project.iam.gserviceaccount.com"
+            },
+            {
+              "name": "GOOGLE_PRIVATE_KEY",
+              "value": "-----BEGIN PRIVATE KEY-----\\nYOUR_PRIVATE_KEY_HERE\\n-----END PRIVATE KEY-----"
+            },
+            {
+              "name": "GMAIL_USER",
+              "value": "your-email@gmail.com"
+            },
+            {
+              "name": "API_KEY",
+              "value": "abc123def456ghi789jkl012mno345pqr678"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-config",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "serviceAccountEmail": "={{$('Set Configuration').item.json.GOOGLE_SERVICE_ACCOUNT_EMAIL}}",
+        "privateKey": "={{$('Set Configuration').item.json.GOOGLE_PRIVATE_KEY}}",
+        "operation": "read",
+        "documentId": "={{$('Set Configuration').item.json.GOOGLE_SHEETS_ID}}",
+        "sheetName": "Customers",
+        "range": "A:O",
+        "keyRow": 1,
+        "dataStartRow": 2
+      },
+      "id": "get-customers",
+      "name": "Get Customer Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "filter-ready",
+              "leftValue": "={{$json.Status}}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "has-phone",
+              "leftValue": "={{$json.Phone}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "not-called-today",
+              "leftValue": "={{$json['Last Call Date']}}",
+              "rightValue": "={{DateTime.now().toFormat('yyyy-MM-dd')}}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-customers",
+      "name": "Filter Ready Customers",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "process-one-by-one",
+      "name": "Process One by One",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Set Configuration').item.json.BASE_URL}}/api/calls/initiate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$('Set Configuration').item.json.API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\\n  \"customerId\": \"{{$json.ID}}\",\\n  \"phoneNumber\": \"{{$json.Phone}}\"\\n}",
+        "options": {}
+      },
+      "id": "initiate-call",
+      "name": "Initiate AI Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "wait-between-calls",
+      "name": "Wait Between Calls",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "call-success",
+              "leftValue": "={{$json.success}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-call-success",
+      "name": "Check Call Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "serviceAccountEmail": "={{$('Set Configuration').item.json.GOOGLE_SERVICE_ACCOUNT_EMAIL}}",
+        "privateKey": "={{$('Set Configuration').item.json.GOOGLE_PRIVATE_KEY}}",
+        "operation": "update",
+        "documentId": "={{$('Set Configuration').item.json.GOOGLE_SHEETS_ID}}",
+        "sheetName": "Customers",
+        "range": "H{{$('Process One by One').item.json.row}}:I{{$('Process One by One').item.json.row}}",
+        "keyRow": 1,
+        "dataMode": "define",
+        "data": {
+          "values": [
+            [
+              "={{DateTime.now().toFormat('yyyy-MM-dd')}}",
+              "call_initiated"
+            ]
+          ]
+        }
+      },
+      "id": "update-call-success",
+      "name": "Update Call Success",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "serviceAccountEmail": "={{$('Set Configuration').item.json.GOOGLE_SERVICE_ACCOUNT_EMAIL}}",
+        "privateKey": "={{$('Set Configuration').item.json.GOOGLE_PRIVATE_KEY}}",
+        "operation": "update",
+        "documentId": "={{$('Set Configuration').item.json.GOOGLE_SHEETS_ID}}",
+        "sheetName": "Customers",
+        "range": "H{{$('Process One by One').item.json.row}}:I{{$('Process One by One').item.json.row}}",
+        "keyRow": 1,
+        "dataMode": "define",
+        "data": {
+          "values": [
+            [
+              "={{DateTime.now().toFormat('yyyy-MM-dd')}}",
+              "call_failed"
+            ]
+          ]
+        }
+      },
+      "id": "update-call-failed",
+      "name": "Update Call Failed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$('Set Configuration').item.json.BASE_URL}}/api/calls/statistics",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$('Set Configuration').item.json.API_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-statistics",
+      "name": "Get Statistics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$('Set Configuration').item.json.GMAIL_USER}}",
+        "toEmail": "admin@yourcompany.com",
+        "subject": "Daily AI Calling Report - {{DateTime.now().toFormat('yyyy-MM-dd')}}",
+        "emailType": "html",
+        "message": "=<h2>🤖 Daily AI Calling Report</h2>\\n<p><strong>Date:</strong> {{DateTime.now().toFormat('yyyy-MM-dd')}}</p>\\n\\n<h3>📊 Statistics:</h3>\\n<ul>\\n<li><strong>Total Customers:</strong> {{$json.data.sheets.total || 'N/A'}}</li>\\n<li><strong>Called Today:</strong> {{$json.data.sheets.calledToday || 'N/A'}}</li>\\n<li><strong>Successful Calls:</strong> {{$json.data.sheets.interested || 'N/A'}}</li>\\n<li><strong>Appointments Scheduled:</strong> {{$json.data.sheets.appointments || 'N/A'}}</li>\\n</ul>\\n\\n<h3>📞 Call Summary:</h3>\\n<ul>\\n<li><strong>Total Calls Made:</strong> {{$json.data.calls.total || 'N/A'}}</li>\\n<li><strong>Average Duration:</strong> {{$json.data.calls.averageDuration || 'N/A'}} seconds</li>\\n<li><strong>Success Rate:</strong> {{Math.round(($json.data.calls.successful / $json.data.calls.total) * 100) || 0}}%</li>\\n</ul>\\n\\n<p><em>Generated by AI Cold-Calling System</em></p>",
+        "options": {}
+      },
+      "id": "send-daily-report",
+      "name": "Send Daily Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Set Configuration').item.json.BASE_URL}}/api/calls/initiate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$('Set Configuration').item.json.API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\\n  \"customerId\": \"{{$json.ID}}\",\\n  \"phoneNumber\": \"{{$json.Phone}}\"\\n}",
+        "options": {}
+      },
+      "id": "manual-call-webhook",
+      "name": "Manual Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        500
+      ],
+      "webhookId": "manual-call"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bulk-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bulk-call-webhook",
+      "name": "Bulk Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        600
+      ],
+      "webhookId": "bulk-call"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Call Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Get Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customer Data": {
+      "main": [
+        [
+          {
+            "node": "Filter Ready Customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Ready Customers": {
+      "main": [
+        [
+          {
+            "node": "Process One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process One by One": {
+      "main": [
+        [
+          {
+            "node": "Initiate AI Call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initiate AI Call": {
+      "main": [
+        [
+          {
+            "node": "Wait Between Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Between Calls": {
+      "main": [
+        [
+          {
+            "node": "Check Call Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Call Success": {
+      "main": [
+        [
+          {
+            "node": "Update Call Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Call Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Call Success": {
+      "main": [
+        [
+          {
+            "node": "Process One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Call Failed": {
+      "main": [
+        [
+          {
+            "node": "Process One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Statistics": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Call Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bulk Call Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "your-instance-id"
+  },
+  "id": "ai-cold-calling-workflow",
+  "tags": []
+}
