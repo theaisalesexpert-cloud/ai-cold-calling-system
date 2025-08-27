@@ -50,11 +50,18 @@ router.get('/detailed', catchAsync(async (req, res) => {
 
   // Check Email service
   try {
-    await emailService.testEmailConfiguration();
-    healthChecks.services.email = {
-      status: 'healthy',
-      message: 'Configuration valid'
-    };
+    const emailTest = await emailService.testEmailConfiguration();
+    if (emailTest.success) {
+      healthChecks.services.email = {
+        status: 'healthy',
+        message: 'Configuration valid'
+      };
+    } else {
+      healthChecks.services.email = {
+        status: 'disabled',
+        message: emailTest.message || emailTest.error || 'Email service not configured'
+      };
+    }
   } catch (error) {
     healthChecks.services.email = {
       status: 'unhealthy',

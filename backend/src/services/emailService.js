@@ -5,6 +5,7 @@ const { AppError } = require('../utils/errorHandler');
 class EmailService {
   constructor() {
     this.transporter = null;
+    this.isEnabled = false;
     this.initializeTransporter();
   }
 
@@ -13,6 +14,13 @@ class EmailService {
    */
   initializeTransporter() {
     try {
+      // Check if email credentials are provided
+      if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+        sheetsLogger.warn('Email service disabled: Gmail credentials not provided');
+        this.isEnabled = false;
+        return;
+      }
+
       this.transporter = nodemailer.createTransporter({
         service: 'gmail',
         auth: {
@@ -21,10 +29,12 @@ class EmailService {
         }
       });
 
+      this.isEnabled = true;
       sheetsLogger.info('Email transporter initialized');
     } catch (error) {
       sheetsLogger.error('Failed to initialize email transporter', { error: error.message });
-      throw new AppError('Failed to initialize email service', 500);
+      this.isEnabled = false;
+      sheetsLogger.warn('Email service disabled due to initialization error');
     }
   }
 
@@ -32,6 +42,17 @@ class EmailService {
    * Send similar cars email to customer
    */
   async sendSimilarCarsEmail(customerEmail, customerName, originalCarModel) {
+    if (!this.isEnabled) {
+      sheetsLogger.warn('Email service disabled, skipping email send', {
+        customerEmail,
+        customerName
+      });
+      return {
+        success: false,
+        message: 'Email service not configured'
+      };
+    }
+
     try {
       const subject = `Similar Car Options to ${originalCarModel} - Premier Auto`;
       const htmlContent = this.generateSimilarCarsEmailHTML(customerName, originalCarModel);
@@ -53,7 +74,7 @@ class EmailService {
       };
 
       const result = await this.transporter.sendMail(mailOptions);
-      
+
       sheetsLogger.info('Similar cars email sent', {
         customerEmail,
         customerName,
@@ -70,7 +91,10 @@ class EmailService {
         customerEmail,
         customerName
       });
-      throw new AppError('Failed to send email', 500);
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
@@ -78,6 +102,17 @@ class EmailService {
    * Send appointment confirmation email
    */
   async sendAppointmentConfirmationEmail(customerEmail, customerName, appointmentDetails) {
+    if (!this.isEnabled) {
+      sheetsLogger.warn('Email service disabled, skipping appointment confirmation email', {
+        customerEmail,
+        customerName
+      });
+      return {
+        success: false,
+        message: 'Email service not configured'
+      };
+    }
+
     try {
       const subject = `Appointment Confirmation - ${appointmentDetails.carModel}`;
       const htmlContent = this.generateAppointmentEmailHTML(customerName, appointmentDetails);
@@ -92,7 +127,7 @@ class EmailService {
       };
 
       const result = await this.transporter.sendMail(mailOptions);
-      
+
       sheetsLogger.info('Appointment confirmation email sent', {
         customerEmail,
         customerName,
@@ -109,7 +144,10 @@ class EmailService {
         customerEmail,
         customerName
       });
-      throw new AppError('Failed to send appointment confirmation email', 500);
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
@@ -345,13 +383,23 @@ Premier Auto Sales
    * Test email configuration
    */
   async testEmailConfiguration() {
+    if (!this.isEnabled) {
+      return {
+        success: false,
+        message: 'Email service not configured - Gmail credentials missing'
+      };
+    }
+
     try {
       await this.transporter.verify();
       sheetsLogger.info('Email configuration test successful');
       return { success: true };
     } catch (error) {
       sheetsLogger.error('Email configuration test failed', { error: error.message });
-      throw new AppError('Email configuration test failed', 500);
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 }

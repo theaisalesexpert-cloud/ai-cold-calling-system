@@ -264,9 +264,9 @@ generateSimilarCarsEmailHTML(customerName, originalCarModel) {
 5. **💬 Join our Discord** for community support
 
 ### 🔗 Useful Links
-- **🌟 Live Demo**: [Try it here](https://demo.ai-calling-system.com)
-- **📺 Video Tutorial**: [Watch setup guide](https://youtube.com/watch?v=your-video)
-- **📊 Case Studies**: [See success stories](https://ai-calling-system.com/case-studies)
+- **🛠️ Render Troubleshooting**: [Quick fixes for deployment issues](docs/render-troubleshooting.md)
+- **📋 Setup Checklist**: [Complete setup guide](SETUP_CHECKLIST.md)
+- **🔧 n8n Setup**: [Configure workflows with Set nodes](docs/n8n-setup-guide.md)
 
 ## 📄 License
 
