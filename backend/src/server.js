@@ -45,6 +45,9 @@ const optionalEnvVars = {
 
 logger.info('Optional services configuration', optionalEnvVars);
 
+// Trust proxy for Render deployment (fixes rate limiting issues)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(compression());

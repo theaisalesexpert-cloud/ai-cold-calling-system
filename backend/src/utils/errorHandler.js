@@ -35,6 +35,12 @@ const handleJWTExpiredError = () =>
   new AppError('Your token has expired! Please log in again.', 401);
 
 const sendErrorDev = (err, res) => {
+  // Check if response has already been sent
+  if (res.headersSent) {
+    logger.error('Headers already sent, cannot send error response:', err);
+    return;
+  }
+
   res.status(err.statusCode).json({
     status: err.status,
     error: err,
@@ -45,6 +51,12 @@ const sendErrorDev = (err, res) => {
 };
 
 const sendErrorProd = (err, res) => {
+  // Check if response has already been sent
+  if (res.headersSent) {
+    logger.error('Headers already sent, cannot send error response:', err);
+    return;
+  }
+
   // Operational, trusted error: send message to client
   if (err.isOperational) {
     res.status(err.statusCode).json({
