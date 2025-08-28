@@ -1,12 +1,40 @@
 const express = require('express');
 const twilio = require('twilio');
-const { twilioLogger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { catchAsync } = require('../utils/errorHandler');
 const conversationService = require('../services/conversationService');
 const googleSheetsService = require('../services/googleSheetsService');
+const elevenlabsService = require('../services/elevenlabsService');
+const deepgramService = require('../services/deepgramService');
 
 const router = express.Router();
 const VoiceResponse = twilio.twiml.VoiceResponse;
+
+// Check if enhanced services are enabled
+const useElevenLabs = process.env.USE_ELEVENLABS === 'true';
+const useDeepgram = process.env.USE_DEEPGRAM === 'true';
+
+/**
+ * Helper function to add speech to TwiML using ElevenLabs or Twilio TTS
+ */
+async function addSpeechToTwiML(twiml, text, baseUrl, callSid) {
+  if (useElevenLabs) {
+    try {
+      const audioResult = await elevenlabsService.generateSpeechForTwilio(text, baseUrl);
+      if (audioResult && audioResult.audioUrl) {
+        twiml.play(audioResult.audioUrl);
+        logger.info('Added ElevenLabs audio to TwiML', { callSid, audioUrl: audioResult.audioUrl });
+        return true;
+      }
+    } catch (error) {
+      logger.error('ElevenLabs failed, using Twilio TTS fallback', { error: error.message, callSid });
+    }
+  }
+
+  // Fallback to Twilio TTS
+  twiml.say({ voice: 'alice', language: 'en-US' }, text);
+  return false;
+}
 
 /**
  * Handle incoming voice calls (initial webhook)
@@ -14,10 +42,12 @@ const VoiceResponse = twilio.twiml.VoiceResponse;
 router.post('/voice', catchAsync(async (req, res) => {
   const { CallSid, From, To } = req.body;
 
-  twilioLogger.info('Voice webhook received', {
+  logger.info('Voice webhook received', {
     callSid: CallSid,
     from: From,
     to: To,
+    useElevenLabs,
+    useDeepgram,
     body: req.body,
     query: req.query
   });
@@ -26,11 +56,52 @@ router.post('/voice', catchAsync(async (req, res) => {
     // Create TwiML response
     const twiml = new VoiceResponse();
 
-    // Simple greeting that always works
-    twiml.say({
-      voice: 'alice',
-      language: 'en-US'
-    }, 'Hello! This is Sarah from Premier Auto. Thank you for your interest in our vehicles.');
+    // Get base URL for audio files
+    const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
+
+    // Initial greeting message
+    const greetingMessage = 'Hello! This is Sarah from Premier Auto. Thank you for your interest in our vehicles.';
+
+    // Use ElevenLabs if enabled, otherwise fallback to Twilio TTS
+    if (useElevenLabs) {
+      try {
+        logger.info('Using ElevenLabs for greeting', { callSid: CallSid });
+        const audioResult = await elevenlabsService.generateSpeechForTwilio(greetingMessage, baseUrl);
+
+        if (audioResult && audioResult.audioUrl) {
+          // Play ElevenLabs generated audio
+          twiml.play(audioResult.audioUrl);
+          logger.info('ElevenLabs audio added to TwiML', {
+            callSid: CallSid,
+            audioUrl: audioResult.audioUrl
+          });
+        } else {
+          // Fallback to Twilio TTS
+          twiml.say({
+            voice: 'alice',
+            language: 'en-US'
+          }, greetingMessage);
+          logger.warn('ElevenLabs failed, using Twilio TTS fallback', { callSid: CallSid });
+        }
+      } catch (error) {
+        logger.error('ElevenLabs error, using Twilio TTS fallback', {
+          error: error.message,
+          callSid: CallSid
+        });
+        // Fallback to Twilio TTS
+        twiml.say({
+          voice: 'alice',
+          language: 'en-US'
+        }, greetingMessage);
+      }
+    } else {
+      // Use Twilio built-in TTS
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, greetingMessage);
+      logger.info('Using Twilio TTS (ElevenLabs disabled)', { callSid: CallSid });
+    }
 
     // Pause for a moment
     twiml.pause({ length: 1 });
@@ -66,18 +137,50 @@ router.post('/voice', catchAsync(async (req, res) => {
     try {
       conversationResponse = await conversationService.generateInitialGreeting(CallSid, customerData);
     } catch (error) {
-      twilioLogger.warn('Could not generate AI response, using fallback', { error: error.message });
+      logger.warn('Could not generate AI response, using fallback', { error: error.message });
       conversationResponse = {
         response: `Hi ${customerData.name}, are you still interested in ${customerData.carModel}?`,
         nextStep: 'interest_check'
       };
     }
 
-    // Add the AI response
-    twiml.say({
-      voice: 'alice',
-      language: 'en-US'
-    }, conversationResponse.response);
+    // Add the AI response using ElevenLabs if enabled
+    if (useElevenLabs) {
+      try {
+        logger.info('Using ElevenLabs for AI response', { callSid: CallSid });
+        const audioResult = await elevenlabsService.generateSpeechForTwilio(conversationResponse.response, baseUrl);
+
+        if (audioResult && audioResult.audioUrl) {
+          twiml.play(audioResult.audioUrl);
+          logger.info('ElevenLabs AI response added to TwiML', {
+            callSid: CallSid,
+            audioUrl: audioResult.audioUrl
+          });
+        } else {
+          // Fallback to Twilio TTS
+          twiml.say({
+            voice: 'alice',
+            language: 'en-US'
+          }, conversationResponse.response);
+        }
+      } catch (error) {
+        logger.error('ElevenLabs error for AI response, using Twilio TTS', {
+          error: error.message,
+          callSid: CallSid
+        });
+        // Fallback to Twilio TTS
+        twiml.say({
+          voice: 'alice',
+          language: 'en-US'
+        }, conversationResponse.response);
+      }
+    } else {
+      // Use Twilio built-in TTS
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, conversationResponse.response);
+    }
 
     // Gather speech input
     const gather = twiml.gather({
@@ -138,29 +241,48 @@ router.post('/voice', catchAsync(async (req, res) => {
  */
 router.post('/gather', catchAsync(async (req, res) => {
   const { CallSid, SpeechResult, Confidence } = req.body;
-  
-  twilioLogger.info('Gather webhook received', {
+
+  logger.info('Gather webhook received', {
     callSid: CallSid,
     speechResult: SpeechResult,
-    confidence: Confidence
+    confidence: Confidence,
+    useElevenLabs,
+    useDeepgram
   });
+
+  // Get base URL for audio files
+  const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
 
   try {
     let conversation;
     try {
       conversation = conversationService.getConversation(CallSid);
     } catch (error) {
-      twilioLogger.warn('Could not get conversation, creating fallback', { error: error.message });
+      logger.warn('Could not get conversation, creating fallback', { error: error.message });
     }
 
     if (!conversation) {
-      twilioLogger.warn('Conversation not found for gather, ending call', { callSid: CallSid });
+      logger.warn('Conversation not found for gather, ending call', { callSid: CallSid });
 
       const twiml = new VoiceResponse();
-      twiml.say({
-        voice: 'alice',
-        language: 'en-US'
-      }, "Thank you for your interest. We'll follow up with you soon. Goodbye!");
+      const endMessage = "Thank you for your interest. We'll follow up with you soon. Goodbye!";
+
+      // Use ElevenLabs for goodbye message if enabled
+      if (useElevenLabs) {
+        try {
+          const audioResult = await elevenlabsService.generateSpeechForTwilio(endMessage, baseUrl);
+          if (audioResult && audioResult.audioUrl) {
+            twiml.play(audioResult.audioUrl);
+          } else {
+            twiml.say({ voice: 'alice', language: 'en-US' }, endMessage);
+          }
+        } catch (error) {
+          twiml.say({ voice: 'alice', language: 'en-US' }, endMessage);
+        }
+      } else {
+        twiml.say({ voice: 'alice', language: 'en-US' }, endMessage);
+      }
+
       twiml.hangup();
 
       res.type('text/xml');
@@ -204,13 +326,27 @@ router.post('/gather', catchAsync(async (req, res) => {
     try {
       result = await conversationService.processCustomerInput(CallSid, SpeechResult);
     } catch (error) {
-      twilioLogger.error('Error processing customer input', { error: error.message });
+      logger.error('Error processing customer input', { error: error.message });
 
       const twiml = new VoiceResponse();
-      twiml.say({
-        voice: 'alice',
-        language: 'en-US'
-      }, "Thank you for your interest. We'll be in touch soon. Goodbye!");
+      const errorMessage = "Thank you for your interest. We'll be in touch soon. Goodbye!";
+
+      // Use ElevenLabs for error message if enabled
+      if (useElevenLabs) {
+        try {
+          const audioResult = await elevenlabsService.generateSpeechForTwilio(errorMessage, baseUrl);
+          if (audioResult && audioResult.audioUrl) {
+            twiml.play(audioResult.audioUrl);
+          } else {
+            twiml.say({ voice: 'alice', language: 'en-US' }, errorMessage);
+          }
+        } catch (error) {
+          twiml.say({ voice: 'alice', language: 'en-US' }, errorMessage);
+        }
+      } else {
+        twiml.say({ voice: 'alice', language: 'en-US' }, errorMessage);
+      }
+
       twiml.hangup();
 
       res.type('text/xml');
@@ -220,32 +356,92 @@ router.post('/gather', catchAsync(async (req, res) => {
     const twiml = new VoiceResponse();
 
     if (result.shouldContinue) {
-      // Continue conversation
-      const gather = twiml.gather({
-        input: 'speech',
-        timeout: 10,
-        speechTimeout: 'auto',
-        action: '/webhook/twilio/gather',
-        method: 'POST'
-      });
+      // Continue conversation with ElevenLabs if enabled
+      if (useElevenLabs) {
+        try {
+          logger.info('Using ElevenLabs for conversation response', { callSid: CallSid });
+          const audioResult = await elevenlabsService.generateSpeechForTwilio(result.response, baseUrl);
 
-      gather.say({
-        voice: 'alice',
-        language: 'en-US'
-      }, result.response);
+          if (audioResult && audioResult.audioUrl) {
+            // Play ElevenLabs audio and then gather
+            twiml.play(audioResult.audioUrl);
 
-      // Fallback if no response
-      twiml.say({
-        voice: 'alice',
-        language: 'en-US'
-      }, "Thank you for your time. We'll follow up with you. Goodbye!");
-      twiml.hangup();
+            const gather = twiml.gather({
+              input: 'speech',
+              timeout: 10,
+              speechTimeout: 'auto',
+              action: '/webhook/twilio/gather',
+              method: 'POST'
+            });
+
+            // Fallback if no response
+            const fallbackMessage = "Thank you for your time. We'll follow up with you. Goodbye!";
+            const fallbackAudio = await elevenlabsService.generateSpeechForTwilio(fallbackMessage, baseUrl);
+            if (fallbackAudio && fallbackAudio.audioUrl) {
+              twiml.play(fallbackAudio.audioUrl);
+            } else {
+              twiml.say({ voice: 'alice', language: 'en-US' }, fallbackMessage);
+            }
+            twiml.hangup();
+          } else {
+            // Fallback to Twilio TTS
+            const gather = twiml.gather({
+              input: 'speech',
+              timeout: 10,
+              speechTimeout: 'auto',
+              action: '/webhook/twilio/gather',
+              method: 'POST'
+            });
+
+            gather.say({ voice: 'alice', language: 'en-US' }, result.response);
+            twiml.say({ voice: 'alice', language: 'en-US' }, "Thank you for your time. We'll follow up with you. Goodbye!");
+            twiml.hangup();
+          }
+        } catch (error) {
+          logger.error('ElevenLabs error in conversation, using Twilio TTS', { error: error.message });
+          // Fallback to Twilio TTS
+          const gather = twiml.gather({
+            input: 'speech',
+            timeout: 10,
+            speechTimeout: 'auto',
+            action: '/webhook/twilio/gather',
+            method: 'POST'
+          });
+
+          gather.say({ voice: 'alice', language: 'en-US' }, result.response);
+          twiml.say({ voice: 'alice', language: 'en-US' }, "Thank you for your time. We'll follow up with you. Goodbye!");
+          twiml.hangup();
+        }
+      } else {
+        // Use Twilio built-in TTS
+        const gather = twiml.gather({
+          input: 'speech',
+          timeout: 10,
+          speechTimeout: 'auto',
+          action: '/webhook/twilio/gather',
+          method: 'POST'
+        });
+
+        gather.say({ voice: 'alice', language: 'en-US' }, result.response);
+        twiml.say({ voice: 'alice', language: 'en-US' }, "Thank you for your time. We'll follow up with you. Goodbye!");
+        twiml.hangup();
+      }
     } else {
-      // End conversation
-      twiml.say({
-        voice: 'alice',
-        language: 'en-US'
-      }, result.response);
+      // End conversation with ElevenLabs if enabled
+      if (useElevenLabs) {
+        try {
+          const audioResult = await elevenlabsService.generateSpeechForTwilio(result.response, baseUrl);
+          if (audioResult && audioResult.audioUrl) {
+            twiml.play(audioResult.audioUrl);
+          } else {
+            twiml.say({ voice: 'alice', language: 'en-US' }, result.response);
+          }
+        } catch (error) {
+          twiml.say({ voice: 'alice', language: 'en-US' }, result.response);
+        }
+      } else {
+        twiml.say({ voice: 'alice', language: 'en-US' }, result.response);
+      }
       twiml.hangup();
     }
 

@@ -222,4 +222,65 @@ router.get('/elevenlabs/voices', catchAsync(async (req, res) => {
   }
 }));
 
+/**
+ * Test TwiML generation with ElevenLabs
+ */
+router.post('/twiml', catchAsync(async (req, res) => {
+  const { text = "Hello, this is a test of TwiML generation with ElevenLabs integration." } = req.body;
+  const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
+
+  logger.info('Testing TwiML generation', { textLength: text.length, useElevenLabs: process.env.USE_ELEVENLABS });
+
+  try {
+    const twilio = require('twilio');
+    const VoiceResponse = twilio.twiml.VoiceResponse;
+    const twiml = new VoiceResponse();
+
+    // Test the same logic used in actual calls
+    if (process.env.USE_ELEVENLABS === 'true') {
+      try {
+        const audioResult = await elevenlabsService.generateSpeechForTwilio(text, baseUrl);
+        if (audioResult && audioResult.audioUrl) {
+          twiml.play(audioResult.audioUrl);
+
+          res.json({
+            success: true,
+            message: 'TwiML with ElevenLabs generated successfully',
+            data: {
+              twiml: twiml.toString(),
+              audioUrl: audioResult.audioUrl,
+              filename: audioResult.filename,
+              usedElevenLabs: true
+            }
+          });
+          return;
+        }
+      } catch (error) {
+        logger.error('ElevenLabs failed in TwiML test', { error: error.message });
+      }
+    }
+
+    // Fallback to Twilio TTS
+    twiml.say({ voice: 'alice', language: 'en-US' }, text);
+
+    res.json({
+      success: true,
+      message: 'TwiML with Twilio TTS generated',
+      data: {
+        twiml: twiml.toString(),
+        usedElevenLabs: false,
+        fallbackReason: process.env.USE_ELEVENLABS !== 'true' ? 'ElevenLabs disabled' : 'ElevenLabs failed'
+      }
+    });
+
+  } catch (error) {
+    logger.error('TwiML test failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'TwiML test failed',
+      details: error.message
+    });
+  }
+}));
+
 module.exports = router;
