@@ -6,17 +6,22 @@ const { AppError } = require('../utils/errorHandler');
 
 class ElevenLabsService {
   constructor() {
-    if (!process.env.ELEVENLABS_API_KEY) {
-      logger.warn('ElevenLabs API key not configured - service disabled');
-      this.enabled = false;
-      return;
-    }
-
+    this.enabled = false;
     this.apiKey = process.env.ELEVENLABS_API_KEY;
     this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // Default: Bella
     this.modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2';
     this.baseUrl = 'https://api.elevenlabs.io/v1';
-    this.enabled = true;
+
+    // Only enable if explicitly configured and enabled
+    if (!this.apiKey) {
+      logger.warn('ElevenLabs API key not configured - service disabled');
+      return;
+    }
+
+    if (process.env.USE_ELEVENLABS !== 'true') {
+      logger.warn('ElevenLabs service disabled via USE_ELEVENLABS setting');
+      return;
+    }
 
     // Create audio directory if it doesn't exist
     this.audioDir = path.join(__dirname, '../../temp/audio');
@@ -31,10 +36,36 @@ class ElevenLabsService {
       return;
     }
 
-    logger.info('ElevenLabs service initialized', {
-      voiceId: this.voiceId,
-      modelId: this.modelId
+    // Test API connection and enable service
+    this.testConnection().then(isWorking => {
+      this.enabled = isWorking;
+      logger.info('ElevenLabs service initialization complete', {
+        voiceId: this.voiceId,
+        modelId: this.modelId,
+        enabled: this.enabled
+      });
+    }).catch(error => {
+      logger.error('ElevenLabs service initialization failed', { error: error.message });
+      this.enabled = false;
     });
+  }
+
+  /**
+   * Test API connection
+   */
+  async testConnection() {
+    try {
+      const response = await axios.get(`${this.baseUrl}/voices`, {
+        headers: {
+          'xi-api-key': this.apiKey
+        },
+        timeout: 5000
+      });
+      return response.status === 200;
+    } catch (error) {
+      logger.error('ElevenLabs API test failed', { error: error.message });
+      return false;
+    }
   }
 
   /**

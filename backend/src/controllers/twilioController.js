@@ -15,23 +15,45 @@ const useElevenLabs = process.env.USE_ELEVENLABS === 'true';
 const useDeepgram = process.env.USE_DEEPGRAM === 'true';
 
 /**
- * Helper function to add speech to TwiML using ElevenLabs or Twilio TTS
+ * Helper function to add speech to TwiML using ElevenLabs ONLY
  */
 async function addSpeechToTwiML(twiml, text, baseUrl, callSid) {
-  if (useElevenLabs) {
+  // Check if ElevenLabs is enabled and working
+  const elevenlabsHealth = await elevenlabsService.healthCheck();
+
+  if (useElevenLabs && elevenlabsHealth.status === 'healthy') {
     try {
+      logger.info('Generating ElevenLabs audio', { callSid, textLength: text.length });
       const audioResult = await elevenlabsService.generateSpeechForTwilio(text, baseUrl);
+
       if (audioResult && audioResult.audioUrl) {
         twiml.play(audioResult.audioUrl);
-        logger.info('Added ElevenLabs audio to TwiML', { callSid, audioUrl: audioResult.audioUrl });
+        logger.info('✅ ElevenLabs audio added to TwiML', {
+          callSid,
+          audioUrl: audioResult.audioUrl,
+          filename: audioResult.filename
+        });
         return true;
+      } else {
+        logger.error('❌ ElevenLabs returned no audio result', { callSid });
       }
     } catch (error) {
-      logger.error('ElevenLabs failed, using Twilio TTS fallback', { error: error.message, callSid });
+      logger.error('❌ ElevenLabs generation failed', {
+        error: error.message,
+        callSid,
+        textLength: text.length
+      });
     }
+  } else {
+    logger.warn('⚠️ ElevenLabs not available', {
+      callSid,
+      useElevenLabs,
+      healthStatus: elevenlabsHealth.status
+    });
   }
 
-  // Fallback to Twilio TTS
+  // Fallback to Twilio TTS ONLY if ElevenLabs completely fails
+  logger.info('🔄 Using Twilio TTS fallback', { callSid });
   twiml.say({ voice: 'alice', language: 'en-US' }, text);
   return false;
 }
@@ -94,15 +116,16 @@ router.post('/voice', catchAsync(async (req, res) => {
       };
     }
 
-    // Start conversation
+    // Start conversation with new script-based service
     let conversationResponse;
     try {
       conversationResponse = await conversationService.generateInitialGreeting(CallSid, customerData);
     } catch (error) {
       logger.warn('Could not generate AI response, using fallback', { error: error.message });
       conversationResponse = {
-        response: `Hi ${customerData.name}, are you still interested in ${customerData.carModel}?`,
-        nextStep: 'interest_check'
+        response: `Hi ${customerData.name}, this is Sarah from Premier Auto. You recently enquired about the ${customerData.carModel}. Is now a good time to talk?`,
+        nextStep: 'greeting_response',
+        shouldContinue: true
       };
     }
 

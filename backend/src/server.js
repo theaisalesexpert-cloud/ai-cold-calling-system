@@ -14,6 +14,7 @@ const sheetsRoutes = require('./controllers/sheetsController');
 const healthRoutes = require('./controllers/healthController');
 const audioRoutes = require('./controllers/audioController');
 const testRoutes = require('./controllers/testController');
+const realTimeResponse = require('./middleware/realTimeResponse');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -81,7 +82,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
 app.use('/health', healthRoutes);
-app.use('/webhook/twilio', twilioRoutes);
+app.use('/webhook/twilio', realTimeResponse.handleRealTimeResponse(), twilioRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/sheets', sheetsRoutes);
 app.use('/audio', audioRoutes);

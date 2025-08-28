@@ -1,0 +1,559 @@
+{
+  "name": "Enhanced AI Cold Calling System - Script-Based",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Enhanced AI Cold Calling System\n## Following Exact Car Dealership Script\n\n### Google Sheet Structure:\n- Column A: Customer Phone Number\n- Column B: Customer Name  \n- Column C: Car Model Enquired About\n- Column D: Interested? (Yes/No)\n- Column E: Appointment Date & Time\n- Column F: Interested in Similar Cars? (Yes/No)\n- Column G: Customer Email\n\n### Conversation Flow:\n1. Greeting & Personalization\n2. Confirm Interest in Original Car\n3. Arrange Appointment OR Offer Similar Cars\n4. Collect Email (if similar cars)\n5. End Call & Send Email\n\n### Features:\n- ElevenLabs natural voice\n- Deepgram speech recognition\n- Real-time Google Sheets updates\n- Automated email sending\n- Script-based conversation flow",
+        "height": 464,
+        "width": 389
+      },
+      "id": "1",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [240, 240],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "API_BASE_URL",
+              "value": "https://ai-cold-calling-system.onrender.com"
+            },
+            {
+              "name": "API_KEY",
+              "value": "abc123def456ghi789jkl012mno345pqr678"
+            },
+            {
+              "name": "GOOGLE_SHEETS_ID",
+              "value": "your_google_sheets_id_here"
+            },
+            {
+              "name": "TWILIO_PHONE_NUMBER",
+              "value": "+441218161111"
+            },
+            {
+              "name": "DEALERSHIP_NAME",
+              "value": "Premier Auto"
+            },
+            {
+              "name": "BOT_NAME",
+              "value": "Sarah"
+            }
+          ]
+        }
+      },
+      "id": "2",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "position": [700, 240],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "url": "={{ $node['Set Configuration'].json.API_BASE_URL }}/api/sheets/customers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "3",
+      "name": "Get Customers from Google Sheets",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [980, 240],
+      "typeVersion": 4.1,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "AI Calling System API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.customers }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "4",
+      "name": "Check if Customers Available",
+      "type": "n8n-nodes-base.if",
+      "position": [1260, 240],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "customers",
+        "options": {}
+      },
+      "id": "5",
+      "name": "Split Customers",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [1540, 160],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            },
+            {
+              "id": "2",
+              "leftValue": "={{ $json.name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            },
+            {
+              "id": "3",
+              "leftValue": "={{ $json.carModel }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "6",
+      "name": "Validate Customer Data",
+      "type": "n8n-nodes-base.if",
+      "position": [1820, 160],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{ $node['Set Configuration'].json.API_BASE_URL }}/api/calls/initiate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phoneNumber\": \"{{ $json.phone }}\",\n  \"customerData\": {\n    \"id\": \"{{ $json.id || $json.customerId }}\",\n    \"name\": \"{{ $json.name }}\",\n    \"phone\": \"{{ $json.phone }}\",\n    \"carModel\": \"{{ $json.carModel }}\",\n    \"dealershipName\": \"{{ $node['Set Configuration'].json.DEALERSHIP_NAME }}\",\n    \"enquiryDate\": \"{{ $json.enquiryDate || new Date().toISOString().split('T')[0] }}\",\n    \"email\": \"{{ $json.email || '' }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "7",
+      "name": "Initiate AI Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2100, 80],
+      "typeVersion": 4.1,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "AI Calling System API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "8",
+      "name": "Wait Between Calls",
+      "type": "n8n-nodes-base.wait",
+      "position": [2380, 80],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "url": "={{ $node['Set Configuration'].json.API_BASE_URL }}/api/calls/{{ $node['Initiate AI Call'].json.callSid }}/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "9",
+      "name": "Check Call Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2660, 80],
+      "typeVersion": 4.1,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "AI Calling System API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "10",
+      "name": "Check if Call Completed",
+      "type": "n8n-nodes-base.if",
+      "position": [2940, 80],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{ $node['Set Configuration'].json.API_BASE_URL }}/api/calls/{{ $node['Initiate AI Call'].json.callSid }}/summary",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "11",
+      "name": "Get Call Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [3220, 0],
+      "typeVersion": 4.1,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "AI Calling System API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $node['Set Configuration'].json.API_BASE_URL }}/api/sheets/update",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phoneNumber\": \"{{ $node['Split Customers'].json.phone }}\",\n  \"updates\": {\n    \"D\": \"{{ $json.interestedInOriginal ? 'Yes' : 'No' }}\",\n    \"E\": \"{{ $json.appointmentDateTime || '' }}\",\n    \"F\": \"{{ $json.interestedInSimilar ? 'Yes' : 'No' }}\",\n    \"G\": \"{{ $json.email || '' }}\",\n    \"lastCallDate\": \"{{ new Date().toISOString().split('T')[0] }}\",\n    \"callStatus\": \"{{ $json.status }}\",\n    \"callDuration\": \"{{ $json.duration }}\",\n    \"sentiment\": \"{{ $json.sentiment }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "12",
+      "name": "Update Google Sheets",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [3500, 0],
+      "typeVersion": 4.1,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "AI Calling System API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $node['Get Call Summary'].json.interestedInSimilar }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "id": "2",
+              "leftValue": "={{ $node['Get Call Summary'].json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "13",
+      "name": "Check if Email Should Be Sent",
+      "type": "n8n-nodes-base.if",
+      "position": [3780, 0],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{ $node['Set Configuration'].json.API_BASE_URL }}/api/email/similar-cars",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\": \"{{ $node['Get Call Summary'].json.email }}\",\n  \"customerName\": \"{{ $node['Split Customers'].json.name }}\",\n  \"originalCarModel\": \"{{ $node['Split Customers'].json.carModel }}\",\n  \"dealershipName\": \"{{ $node['Set Configuration'].json.DEALERSHIP_NAME }}\"\n}",
+        "options": {}
+      },
+      "id": "14",
+      "name": "Send Similar Cars Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [4060, -80],
+      "typeVersion": 4.1,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "AI Calling System API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Call Completed Successfully!\n\n✅ **Customer Called**\n✅ **Google Sheets Updated**\n✅ **Email Sent** (if applicable)\n\n### Next Customer...",
+        "height": 200,
+        "width": 300
+      },
+      "id": "15",
+      "name": "Success",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [4340, -80],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## No Customers Available\n\n⚠️ No customers found in Google Sheets or all customers have been called today.\n\n**Check:**\n- Google Sheets connection\n- Customer data format\n- Call frequency settings",
+        "height": 200,
+        "width": 300
+      },
+      "id": "16",
+      "name": "No Customers",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1540, 360],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Invalid Customer Data\n\n❌ Customer missing required fields:\n- Phone number\n- Name  \n- Car model\n\n**Skipping this customer...**",
+        "height": 200,
+        "width": 300
+      },
+      "id": "17",
+      "name": "Invalid Data",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [2100, 280],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Call In Progress\n\n📞 Call initiated but not yet completed.\n\n**Status:** {{ $json.status }}\n**Duration:** {{ $json.duration || 'Unknown' }}\n\n*Will check again in next run...*",
+        "height": 200,
+        "width": 300
+      },
+      "id": "18",
+      "name": "Call In Progress",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [3220, 200],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Email Not Required\n\n📧 Customer either:\n- Not interested in similar cars\n- No email provided\n- Email already sent\n\n**Workflow complete for this customer.**",
+        "height": 200,
+        "width": 300
+      },
+      "id": "19",
+      "name": "No Email Needed",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [4060, 120],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Get Customers from Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customers from Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Check if Customers Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Customers Available": {
+      "main": [
+        [
+          {
+            "node": "Split Customers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Split Customers": {
+      "main": [
+        [
+          {
+            "node": "Validate Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Customer Data": {
+      "main": [
+        [
+          {
+            "node": "Initiate AI Call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Initiate AI Call": {
+      "main": [
+        [
+          {
+            "node": "Wait Between Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Between Calls": {
+      "main": [
+        [
+          {
+            "node": "Check Call Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Call Status": {
+      "main": [
+        [
+          {
+            "node": "Check if Call Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Call Completed": {
+      "main": [
+        [
+          {
+            "node": "Get Call Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get Call Summary": {
+      "main": [
+        [
+          {
+            "node": "Update Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Check if Email Should Be Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Email Should Be Sent": {
+      "main": [
+        [
+          {
+            "node": "Send Similar Cars Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "1",
+      "name": "AI Calling"
+    },
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z", 
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "2",
+      "name": "Car Dealership"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
