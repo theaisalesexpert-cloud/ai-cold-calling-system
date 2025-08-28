@@ -94,15 +94,16 @@ router.post('/voice', catchAsync(async (req, res) => {
       };
     }
 
-    // Start conversation
+    // Start conversation with new script-based service
     let conversationResponse;
     try {
       conversationResponse = await conversationService.generateInitialGreeting(CallSid, customerData);
     } catch (error) {
       logger.warn('Could not generate AI response, using fallback', { error: error.message });
       conversationResponse = {
-        response: `Hi ${customerData.name}, are you still interested in ${customerData.carModel}?`,
-        nextStep: 'interest_check'
+        response: `Hi ${customerData.name}, this is Sarah from Premier Auto. You recently enquired about the ${customerData.carModel}. Is now a good time to talk?`,
+        nextStep: 'greeting_response',
+        shouldContinue: true
       };
     }
 
