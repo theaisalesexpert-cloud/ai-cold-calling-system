@@ -10,15 +10,20 @@ class DeepgramService {
       return;
     }
 
-    this.client = createClient(process.env.DEEPGRAM_API_KEY);
-    this.model = process.env.DEEPGRAM_MODEL || 'nova-2';
-    this.language = process.env.DEEPGRAM_LANGUAGE || 'en-US';
-    this.enabled = true;
+    try {
+      this.client = createClient(process.env.DEEPGRAM_API_KEY);
+      this.model = process.env.DEEPGRAM_MODEL || 'nova-2';
+      this.language = process.env.DEEPGRAM_LANGUAGE || 'en-US';
+      this.enabled = true;
 
-    logger.info('Deepgram service initialized', {
-      model: this.model,
-      language: this.language
-    });
+      logger.info('Deepgram service initialized', {
+        model: this.model,
+        language: this.language
+      });
+    } catch (error) {
+      logger.error('Failed to initialize Deepgram client', { error: error.message });
+      this.enabled = false;
+    }
   }
 
   /**

@@ -13,6 +13,7 @@ const callRoutes = require('./controllers/callController');
 const sheetsRoutes = require('./controllers/sheetsController');
 const healthRoutes = require('./controllers/healthController');
 const audioRoutes = require('./controllers/audioController');
+const testRoutes = require('./controllers/testController');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -81,6 +82,7 @@ app.use('/webhook/twilio', twilioRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/sheets', sheetsRoutes);
 app.use('/audio', audioRoutes);
+app.use('/api/test', testRoutes);
 
 // Root endpoint
 app.get('/', (_, res) => {

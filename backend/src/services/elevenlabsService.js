@@ -20,8 +20,15 @@ class ElevenLabsService {
 
     // Create audio directory if it doesn't exist
     this.audioDir = path.join(__dirname, '../../temp/audio');
-    if (!fs.existsSync(this.audioDir)) {
-      fs.mkdirSync(this.audioDir, { recursive: true });
+    try {
+      if (!fs.existsSync(this.audioDir)) {
+        fs.mkdirSync(this.audioDir, { recursive: true });
+        logger.info('Created audio directory', { audioDir: this.audioDir });
+      }
+    } catch (error) {
+      logger.error('Failed to create audio directory', { error: error.message });
+      this.enabled = false;
+      return;
     }
 
     logger.info('ElevenLabs service initialized', {
@@ -71,7 +78,7 @@ class ElevenLabsService {
       );
 
       const audioBuffer = Buffer.from(response.data);
-      const filename = `speech_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp3`;
+      const filename = `speech_${Date.now()}_${Math.random().toString(36).substring(2, 11)}.mp3`;
       const filepath = path.join(this.audioDir, filename);
 
       // Save audio file
